@@ -29,6 +29,7 @@ import androidx.media3.ui.PlayerView
 import androidx.tv.material3.*
 import com.iptv.tv.ui.TvViewModel
 import com.iptv.shared.data.db.ChannelEntity
+import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.mvi.PlaybackIntent
 import com.iptv.shared.mvi.PlaybackSideEffect
 import com.iptv.shared.mvi.PlaybackState
@@ -124,15 +125,25 @@ fun TvMainScreen(viewModel: TvViewModel) {
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
-            // Playlist load button
-            Button(
-                onClick = { showUrlDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(setupPlaylistFocusRequester)
-                    .padding(bottom = 12.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Setup Master M3U URL")
+                if (uiState.isLoadingEpg) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Button(
+                    onClick = { showUrlDialog = true },
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(setupPlaylistFocusRequester)
+                ) {
+                    Text("Setup Playlist & EPG")
+                }
             }
 
             // Categories horizontal row
@@ -189,8 +200,11 @@ fun TvMainScreen(viewModel: TvViewModel) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(uiState.channels) { channel ->
+                        val epgPair = uiState.epgData[channel.url]
                         TvChannelItem(
                             channel = channel,
+                            currentProgram = epgPair?.first,
+                            nextProgram = epgPair?.second,
                             onClick = {
                                 viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
                             }
@@ -245,7 +259,7 @@ fun TvMainScreen(viewModel: TvViewModel) {
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = "Configure M3U Playlist URL",
+                        text = "Configure Playlist & EPG",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -254,12 +268,27 @@ fun TvMainScreen(viewModel: TvViewModel) {
                     OutlinedTextField(
                         value = uiState.playlistUrlInput,
                         onValueChange = { viewModel.updateUrlInput(it) },
-                        label = { Text("M3U URL") },
+                        label = { Text("M3U Playlist URL") },
                         placeholder = { Text("http://192.168.1.100/playlist.m3u") },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(dialogFocusRequester),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = uiState.epgUrlInput,
+                        onValueChange = { viewModel.updateEpgUrlInput(it) },
+                        label = { Text("EPG XMLTV URL") },
+                        placeholder = { Text("http://192.168.1.100/epg.xml.gz") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
                         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
@@ -274,7 +303,12 @@ fun TvMainScreen(viewModel: TvViewModel) {
                     ) {
                         Button(
                             onClick = {
-                                viewModel.handleIntent(PlaybackIntent.LoadPlaylist(uiState.playlistUrlInput))
+                                if (uiState.playlistUrlInput.isNotEmpty()) {
+                                    viewModel.handleIntent(PlaybackIntent.LoadPlaylist(uiState.playlistUrlInput))
+                                }
+                                if (uiState.epgUrlInput.isNotEmpty()) {
+                                    viewModel.loadEpg(uiState.epgUrlInput)
+                                }
                                 showUrlDialog = false
                             },
                             modifier = Modifier.weight(1f)
@@ -301,7 +335,12 @@ fun TvMainScreen(viewModel: TvViewModel) {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun TvChannelItem(channel: ChannelEntity, onClick: () -> Unit) {
+fun TvChannelItem(
+    channel: ChannelEntity,
+    currentProgram: ProgramEntity?,
+    nextProgram: ProgramEntity?,
+    onClick: () -> Unit
+) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -319,7 +358,8 @@ fun TvChannelItem(channel: ChannelEntity, onClick: () -> Unit) {
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = 8.dp)
+                    .padding(end = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = channel.name,
@@ -327,12 +367,30 @@ fun TvChannelItem(channel: ChannelEntity, onClick: () -> Unit) {
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
+                
                 val groupTitle = channel.groupTitle
                 if (!groupTitle.isNullOrEmpty()) {
                     Text(
                         text = groupTitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.LightGray
+                        color = Color.LightGray.copy(alpha = 0.8f)
+                    )
+                }
+
+                if (currentProgram != null) {
+                    Text(
+                        text = "Now: ${currentProgram.title}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFE0AAFF),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                if (nextProgram != null) {
+                    Text(
+                        text = "Next: ${nextProgram.title}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.LightGray.copy(alpha = 0.6f)
                     )
                 }
             }

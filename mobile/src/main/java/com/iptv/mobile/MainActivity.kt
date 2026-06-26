@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
 import com.iptv.mobile.ui.MobileViewModel
 import com.iptv.shared.data.db.ChannelEntity
+import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.mvi.PlaybackIntent
 import com.iptv.shared.mvi.PlaybackSideEffect
 import com.iptv.shared.mvi.PlaybackState
@@ -143,13 +144,22 @@ fun MainScreen(viewModel: MobileViewModel) {
                 color = MaterialTheme.colorScheme.onBackground
             )
 
-            Button(
-                onClick = { showUrlDialog = true },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Text("Setup Playlist")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (uiState.isLoadingEpg) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp).padding(end = 8.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
+                Button(
+                    onClick = { showUrlDialog = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Setup Playlist & EPG")
+                }
             }
         }
 
@@ -211,7 +221,12 @@ fun MainScreen(viewModel: MobileViewModel) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(uiState.channels) { channel ->
-                    ChannelListItem(channel = channel) {
+                    val epgPair = uiState.epgData[channel.url]
+                    ChannelListItem(
+                        channel = channel,
+                        currentProgram = epgPair?.first,
+                        nextProgram = epgPair?.second
+                    ) {
                         viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
                     }
                 }
@@ -219,13 +234,13 @@ fun MainScreen(viewModel: MobileViewModel) {
         }
     }
 
-    // Playlist URL Setup Dialog
+    // Playlist & EPG URL Setup Dialog
     if (showUrlDialog) {
         AlertDialog(
             onDismissRequest = { showUrlDialog = false },
-            title = { Text("Configure Playlist M3U URL") },
+            title = { Text("Configure Playlist & EPG") },
             text = {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = uiState.playlistUrlInput,
                         onValueChange = { viewModel.updateUrlInput(it) },
@@ -234,12 +249,25 @@ fun MainScreen(viewModel: MobileViewModel) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    OutlinedTextField(
+                        value = uiState.epgUrlInput,
+                        onValueChange = { viewModel.updateEpgUrlInput(it) },
+                        label = { Text("EPG XMLTV URL") },
+                        placeholder = { Text("http://192.168.1.100/epg.xml.gz") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.handleIntent(PlaybackIntent.LoadPlaylist(uiState.playlistUrlInput))
+                        if (uiState.playlistUrlInput.isNotEmpty()) {
+                            viewModel.handleIntent(PlaybackIntent.LoadPlaylist(uiState.playlistUrlInput))
+                        }
+                        if (uiState.epgUrlInput.isNotEmpty()) {
+                            viewModel.loadEpg(uiState.epgUrlInput)
+                        }
                         showUrlDialog = false
                     }
                 ) {
@@ -318,7 +346,12 @@ fun VideoPlayerContainer(viewModel: MobileViewModel, state: PlaybackState) {
 }
 
 @Composable
-fun ChannelListItem(channel: ChannelEntity, onClick: () -> Unit) {
+fun ChannelListItem(
+    channel: ChannelEntity,
+    currentProgram: ProgramEntity?,
+    nextProgram: ProgramEntity?,
+    onClick: () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -334,11 +367,11 @@ fun ChannelListItem(channel: ChannelEntity, onClick: () -> Unit) {
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Channel Info
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = 8.dp)
+                    .padding(end = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = channel.name,
@@ -346,17 +379,34 @@ fun ChannelListItem(channel: ChannelEntity, onClick: () -> Unit) {
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+
                 val groupTitle = channel.groupTitle
                 if (!groupTitle.isNullOrEmpty()) {
                     Text(
                         text = groupTitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
+                    )
+                }
+
+                if (currentProgram != null) {
+                    Text(
+                        text = "Now: ${currentProgram.title}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                if (nextProgram != null) {
+                    Text(
+                        text = "Next: ${nextProgram.title}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
             }
             
-            // Standard arrow icon representing a play trigger
             Text(
                 text = "▶",
                 style = MaterialTheme.typography.titleMedium,

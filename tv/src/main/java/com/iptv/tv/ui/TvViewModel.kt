@@ -5,6 +5,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.iptv.tv.TvApp
 import com.iptv.shared.data.db.ChannelEntity
+import com.iptv.shared.data.db.ProgramEntity
+import com.iptv.shared.data.epg.EpgFetcher
+import com.iptv.shared.data.epg.EpgMatcher
+import com.iptv.shared.data.epg.EpgSyncWorker
 import com.iptv.shared.data.parser.M3uParser
 import com.iptv.shared.mvi.PlaybackIntent
 import com.iptv.shared.mvi.PlaybackSideEffect
@@ -26,12 +30,16 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as TvApp
     private val channelDao = app.database.channelDao()
+    private val programDao = app.database.programDao()
     
     val playerEngine = PlayerEngine(application)
 
     private val _isLoadingPlaylist = MutableStateFlow(false)
     private val _playlistUrlInput = MutableStateFlow("")
     private val _selectedGroup = MutableStateFlow<String?>(null)
+
+    private val _isLoadingEpg = MutableStateFlow(false)
+    private val _epgUrlInput = MutableStateFlow("")
 
     private val _sideEffects = MutableSharedFlow<PlaybackSideEffect>()
     val sideEffects: SharedFlow<PlaybackSideEffect> = _sideEffects.asSharedFlow()
@@ -40,24 +48,55 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<TvUiState> = _uiState.asStateFlow()
 
     init {
+        val now = System.currentTimeMillis()
         viewModelScope.launch {
             combine(
                 combine(channelDao.getAllChannelsFlow(), channelDao.getUniqueGroupsFlow(), ::Pair),
                 combine(_selectedGroup, playerEngine.playbackState, ::Pair),
-                combine(_isLoadingPlaylist, _playlistUrlInput, ::Pair)
-            ) { (channels, groups), (selectedGroup, playbackState), (isLoadingPlaylist, urlInput) ->
+                combine(
+                    combine(_isLoadingPlaylist, _playlistUrlInput, ::Pair),
+                    combine(_isLoadingEpg, _epgUrlInput, ::Pair),
+                    ::Pair
+                ),
+                combine(
+                    programDao.getActiveProgramsFlow(now),
+                    programDao.getAllUpcomingProgramsFlow(now),
+                    ::Pair
+                )
+            ) { p1, p2, p3, p4 ->
+                val (channels, groups) = p1
+                val (selectedGroup, playbackState) = p2
+                val (playlistInfo, epgInfo) = p3
+                val (isLoadingPlaylist, playlistUrl) = playlistInfo
+                val (isLoadingEpg, epgUrl) = epgInfo
+                val (activeProgs, upcomingProgs) = p4
+
                 val filteredChannels = if (selectedGroup == null) {
                     channels
                 } else {
                     channels.filter { it.groupTitle == selectedGroup }
                 }
+
+                val epgData = filteredChannels.associate { channel ->
+                    val current = activeProgs.firstOrNull {
+                        EpgMatcher.isMatch(channel.tvgId, channel.name, it.channelId)
+                    }
+                    val next = upcomingProgs.firstOrNull {
+                        EpgMatcher.isMatch(channel.tvgId, channel.name, it.channelId) && (current == null || it.start >= current.stop)
+                    }
+                    channel.url to Pair(current, next)
+                }
+
                 TvUiState(
                     channels = filteredChannels,
                     groups = groups,
                     selectedGroup = selectedGroup,
                     playbackState = playbackState,
                     isLoadingPlaylist = isLoadingPlaylist,
-                    playlistUrlInput = urlInput
+                    playlistUrlInput = playlistUrl,
+                    isLoadingEpg = isLoadingEpg,
+                    epgUrlInput = epgUrl,
+                    epgData = epgData
                 )
             }.collect { state ->
                 _uiState.value = state
@@ -81,6 +120,10 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateUrlInput(url: String) {
         _playlistUrlInput.value = url
+    }
+
+    fun updateEpgUrlInput(url: String) {
+        _epgUrlInput.value = url
     }
 
     fun selectGroup(group: String?) {
@@ -119,6 +162,26 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun loadEpg(epgUrl: String) {
+        viewModelScope.launch {
+            _isLoadingEpg.value = true
+            try {
+                withContext(Dispatchers.IO) {
+                    val fetcher = EpgFetcher(app)
+                    val result = fetcher.fetchAndSyncEpg(epgUrl)
+                    if (result.isFailure) throw result.exceptionOrNull()!!
+                }
+                EpgSyncWorker.schedule(app, epgUrl)
+                _sideEffects.emit(PlaybackSideEffect.ShowToast("EPG guide loaded & daily sync scheduled successfully"))
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _sideEffects.emit(PlaybackSideEffect.ShowToast("Failed to load EPG: ${e.localizedMessage}"))
+            } finally {
+                _isLoadingEpg.value = false
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         playerEngine.release()
@@ -131,5 +194,8 @@ data class TvUiState(
     val selectedGroup: String? = null,
     val playbackState: PlaybackState = PlaybackState.Idle,
     val isLoadingPlaylist: Boolean = false,
-    val playlistUrlInput: String = ""
+    val playlistUrlInput: String = "",
+    val isLoadingEpg: Boolean = false,
+    val epgUrlInput: String = "",
+    val epgData: Map<String, Pair<ProgramEntity?, ProgramEntity?>> = emptyMap()
 )
