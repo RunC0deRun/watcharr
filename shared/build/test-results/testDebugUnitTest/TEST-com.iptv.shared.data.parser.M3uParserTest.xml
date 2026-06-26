@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.iptv.shared.data.parser.M3uParserTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-06-26T18:17:57" hostname="MacBook-Air-van-Jan.local" time="0.019">
-  <properties/>
-  <testcase name="testParseSimpleM3u" classname="com.iptv.shared.data.parser.M3uParserTest" time="0.018"/>
-  <testcase name="testParseInvalidLineIsIgnored" classname="com.iptv.shared.data.parser.M3uParserTest" time="0.0"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

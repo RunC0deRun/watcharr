@@ -10,7 +10,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.*
@@ -218,39 +219,83 @@ fun TvMainScreen(viewModel: TvViewModel) {
         }
     }
 
-    // Playlist URL Setup Dialog (standard material dialog, tv navigable)
     if (showUrlDialog) {
-        AlertDialog(
-            onDismissRequest = { showUrlDialog = false },
-            title = { Text("Configure M3U URL", color = Color.White) },
-            text = {
-                Column {
+        val dialogFocusRequester = remember { FocusRequester() }
+        
+        LaunchedEffect(Unit) {
+            dialogFocusRequester.requestFocus()
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.85f))
+                .clickable(enabled = true, onClick = { showUrlDialog = false }),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(550.dp)
+                    .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp))
+                    .padding(24.dp)
+                    .clickable(enabled = false) {}
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Configure M3U Playlist URL",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+
                     OutlinedTextField(
                         value = uiState.playlistUrlInput,
                         onValueChange = { viewModel.updateUrlInput(it) },
                         label = { Text("M3U URL") },
                         placeholder = { Text("http://192.168.1.100/playlist.m3u") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(dialogFocusRequester),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color.Gray
+                        )
                     )
-                }
-            },
-            confirmButton = {
-                androidx.compose.material3.Button(
-                    onClick = {
-                        viewModel.handleIntent(PlaybackIntent.LoadPlaylist(uiState.playlistUrlInput))
-                        showUrlDialog = false
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.handleIntent(PlaybackIntent.LoadPlaylist(uiState.playlistUrlInput))
+                                showUrlDialog = false
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Load")
+                        }
+
+                        Button(
+                            onClick = { showUrlDialog = false },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.colors(
+                                containerColor = Color.Gray.copy(alpha = 0.2f),
+                                focusedContainerColor = Color.Gray
+                            )
+                        ) {
+                            Text("Cancel")
+                        }
                     }
-                ) {
-                    Text("Load")
-                }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showUrlDialog = false }) {
-                    Text("Cancel")
                 }
             }
-        )
+        }
     }
 }
 
