@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.iptv.mobile.MobileApp
 import com.iptv.shared.data.db.ChannelEntity
 import com.iptv.shared.data.db.ProgramEntity
+import com.iptv.shared.data.db.FavoriteEntity
+import com.iptv.shared.data.db.FavoriteDao
 import com.iptv.shared.data.epg.EpgFetcher
 import com.iptv.shared.data.epg.EpgMatcher
 import com.iptv.shared.data.epg.EpgSyncWorker
@@ -31,6 +33,7 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
     private val app = application as MobileApp
     private val channelDao = app.database.channelDao()
     private val programDao = app.database.programDao()
+    private val favoriteDao = app.database.favoriteDao()
     
     val playerEngine = PlayerEngine(application)
 
@@ -41,61 +44,114 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
     private val _isLoadingEpg = MutableStateFlow(false)
     private val _epgUrlInput = MutableStateFlow("")
 
+    private val _searchQuery = MutableStateFlow("")
+
     private val _sideEffects = MutableSharedFlow<PlaybackSideEffect>()
     val sideEffects: SharedFlow<PlaybackSideEffect> = _sideEffects.asSharedFlow()
 
     private val _uiState = MutableStateFlow(MobileUiState())
     val uiState: StateFlow<MobileUiState> = _uiState.asStateFlow()
 
+    private data class ChannelInfo(
+        val channels: List<ChannelEntity>,
+        val groups: List<String>,
+        val searchQuery: String,
+        val favoriteUrls: Set<String>
+    )
+
+    private data class LoadingInfo(
+        val isLoadingPlaylist: Boolean,
+        val playlistUrlInput: String,
+        val isLoadingEpg: Boolean,
+        val epgUrlInput: String
+    )
+
+    private data class EpgInfo(
+        val activePrograms: List<ProgramEntity>,
+        val upcomingPrograms: List<ProgramEntity>
+    )
+
     init {
         val now = System.currentTimeMillis()
         viewModelScope.launch {
-            combine(
-                combine(channelDao.getAllChannelsFlow(), channelDao.getUniqueGroupsFlow(), ::Pair),
-                combine(_selectedGroup, playerEngine.playbackState, ::Pair),
-                combine(
-                    combine(_isLoadingPlaylist, _playlistUrlInput, ::Pair),
-                    combine(_isLoadingEpg, _epgUrlInput, ::Pair),
-                    ::Pair
-                ),
-                combine(
-                    programDao.getActiveProgramsFlow(now),
-                    programDao.getAllUpcomingProgramsFlow(now),
-                    ::Pair
-                )
-            ) { p1, p2, p3, p4 ->
-                val (channels, groups) = p1
-                val (selectedGroup, playbackState) = p2
-                val (playlistInfo, epgInfo) = p3
-                val (isLoadingPlaylist, playlistUrl) = playlistInfo
-                val (isLoadingEpg, epgUrl) = epgInfo
-                val (activeProgs, upcomingProgs) = p4
+            val channelInfoFlow = combine(
+                channelDao.getAllChannelsFlow(),
+                channelDao.getUniqueGroupsFlow(),
+                _searchQuery,
+                favoriteDao.getFavoriteUrlsFlow()
+            ) { channels, groups, search, favorites ->
+                ChannelInfo(channels, groups, search, favorites.toSet())
+            }
 
-                val filteredChannels = if (selectedGroup == null) {
-                    channels
-                } else {
-                    channels.filter { it.groupTitle == selectedGroup }
+            val loadingInfoFlow = combine(
+                _isLoadingPlaylist,
+                _playlistUrlInput,
+                _isLoadingEpg,
+                _epgUrlInput
+            ) { isLoadPlaylist, playlistUrl, isLoadEpg, epgUrl ->
+                LoadingInfo(isLoadPlaylist, playlistUrl, isLoadEpg, epgUrl)
+            }
+
+            val epgInfoFlow = combine(
+                programDao.getActiveProgramsFlow(now),
+                programDao.getAllUpcomingProgramsFlow(now)
+            ) { active, upcoming ->
+                EpgInfo(active, upcoming)
+            }
+
+            combine(
+                channelInfoFlow,
+                loadingInfoFlow,
+                epgInfoFlow,
+                _selectedGroup,
+                playerEngine.playbackState
+            ) { channelInfo, loadingInfo, epgInfo, selectedGroup, playbackState ->
+                val searchQuery = channelInfo.searchQuery
+                val favoriteUrls = channelInfo.favoriteUrls
+                val channels = channelInfo.channels
+
+                val filteredChannels = channels.filter { channel ->
+                    val matchesGroup = when (selectedGroup) {
+                        null -> true
+                        "Favorites" -> favoriteUrls.contains(channel.url)
+                        else -> channel.groupTitle == selectedGroup
+                    }
+                    val matchesSearch = if (searchQuery.isEmpty()) {
+                        true
+                    } else {
+                        channel.name.contains(searchQuery, ignoreCase = true) ||
+                                (channel.groupTitle?.contains(searchQuery, ignoreCase = true) ?: false)
+                    }
+                    matchesGroup && matchesSearch
                 }
 
                 val epgData = filteredChannels.associate { channel ->
-                    val current = activeProgs.firstOrNull {
+                    val current = epgInfo.activePrograms.firstOrNull {
                         EpgMatcher.isMatch(channel.tvgId, channel.name, it.channelId)
                     }
-                    val next = upcomingProgs.firstOrNull {
-                        EpgMatcher.isMatch(channel.tvgId, channel.name, it.channelId) && (current == null || it.start >= current.stop)
+                    val upcoming = epgInfo.upcomingPrograms.filter {
+                        EpgMatcher.isMatch(channel.tvgId, channel.name, it.channelId)
                     }
-                    channel.url to Pair(current, next)
+                    
+                    val programs = mutableListOf<ProgramEntity>()
+                    if (current != null) {
+                        programs.add(current)
+                    }
+                    programs.addAll(upcoming)
+                    channel.url to programs
                 }
 
                 MobileUiState(
                     channels = filteredChannels,
-                    groups = groups,
+                    groups = channelInfo.groups,
                     selectedGroup = selectedGroup,
                     playbackState = playbackState,
-                    isLoadingPlaylist = isLoadingPlaylist,
-                    playlistUrlInput = playlistUrl,
-                    isLoadingEpg = isLoadingEpg,
-                    epgUrlInput = epgUrl,
+                    isLoadingPlaylist = loadingInfo.isLoadingPlaylist,
+                    playlistUrlInput = loadingInfo.playlistUrlInput,
+                    isLoadingEpg = loadingInfo.isLoadingEpg,
+                    epgUrlInput = loadingInfo.epgUrlInput,
+                    searchQuery = searchQuery,
+                    favoriteUrls = favoriteUrls,
                     epgData = epgData
                 )
             }.collect { state ->
@@ -128,6 +184,22 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectGroup(group: String?) {
         _selectedGroup.value = group
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun toggleFavorite(channelUrl: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                if (_uiState.value.favoriteUrls.contains(channelUrl)) {
+                    favoriteDao.delete(channelUrl)
+                } else {
+                    favoriteDao.insert(FavoriteEntity(channelUrl))
+                }
+            }
+        }
     }
 
     private fun loadPlaylist(m3uUrl: String) {
@@ -197,5 +269,7 @@ data class MobileUiState(
     val playlistUrlInput: String = "",
     val isLoadingEpg: Boolean = false,
     val epgUrlInput: String = "",
-    val epgData: Map<String, Pair<ProgramEntity?, ProgramEntity?>> = emptyMap()
+    val searchQuery: String = "",
+    val favoriteUrls: Set<String> = emptySet(),
+    val epgData: Map<String, List<ProgramEntity>> = emptyMap()
 )

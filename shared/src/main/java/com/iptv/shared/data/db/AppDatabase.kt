@@ -5,10 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [ChannelEntity::class, ProgramEntity::class], version = 2, exportSchema = false)
+@Database(entities = [ChannelEntity::class, ProgramEntity::class, FavoriteEntity::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun channelDao(): ChannelDao
     abstract fun programDao(): ProgramDao
+    abstract fun favoriteDao(): FavoriteDao
 
     companion object {
         @Volatile
