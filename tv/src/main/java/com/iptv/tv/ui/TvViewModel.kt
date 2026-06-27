@@ -226,7 +226,7 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
                     dispatcharrUrl = dispatcharrUrl
                 )
             }.collect { state ->
-                _uiState.value = state
+                _uiState.value = state.copy(isInitialized = true)
             }
         }
     }
@@ -427,5 +427,6 @@ data class TvUiState(
     val setupQrUrl: String = "",
     val setupStatus: String = "",
     val useDispatcharr: Boolean = false,
-    val dispatcharrUrl: String = ""
+    val dispatcharrUrl: String = "",
+    val isInitialized: Boolean = false
 )

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -109,10 +110,133 @@ fun IPTVAppTheme(content: @Composable () -> Unit) {
     )
 }
 
+@Composable
+fun WatcharrLogo(modifier: Modifier = Modifier) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
+        Canvas(modifier = Modifier.size(160.dp, 100.dp)) {
+            val w = size.width
+            val h = size.height
+            val strokeWidth = w * 0.12f
+
+            val greenPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(w * 0.12f, h * 0.18f)
+                cubicTo(
+                    w * 0.18f, h * 0.60f,
+                    w * 0.25f, h * 0.85f,
+                    w * 0.35f, h * 0.85f
+                )
+                cubicTo(
+                    w * 0.46f, h * 0.85f,
+                    w * 0.52f, h * 0.30f,
+                    w * 0.57f, h * 0.26f
+                )
+                cubicTo(
+                    w * 0.60f, h * 0.24f,
+                    w * 0.63f, h * 0.32f,
+                    w * 0.61f, h * 0.45f
+                )
+            }
+
+            val yellowPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(w * 0.53f, h * 0.45f)
+                cubicTo(
+                    w * 0.51f, h * 0.32f,
+                    w * 0.54f, h * 0.24f,
+                    w * 0.57f, h * 0.26f
+                )
+                cubicTo(
+                    w * 0.61f, h * 0.30f,
+                    w * 0.67f, h * 0.85f,
+                    w * 0.78f, h * 0.85f
+                )
+                cubicTo(
+                    w * 0.88f, h * 0.85f,
+                    w * 0.95f, h * 0.60f,
+                    w * 1.0f, h * 0.18f
+                )
+            }
+
+            val greenBrush = Brush.verticalGradient(
+                colors = listOf(Color(0xFF49A752), Color(0xFF0F6633))
+            )
+
+            val yellowBrush = Brush.verticalGradient(
+                colors = listOf(Color(0xFFF5C453), Color(0xFFDF9A28))
+            )
+
+            drawPath(
+                path = greenPath,
+                brush = greenBrush,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = strokeWidth,
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    join = androidx.compose.ui.graphics.StrokeJoin.Round
+                )
+            )
+
+            drawPath(
+                path = yellowPath,
+                brush = yellowBrush,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = strokeWidth,
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    join = androidx.compose.ui.graphics.StrokeJoin.Round
+                )
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "WATCHARR",
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Black,
+            color = Color(0xFFDF9A28)
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = "Bring your own TV",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF49A752)
+        )
+    }
+}
+
+@Composable
+fun MobileSplashScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF062A1F)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            WatcharrLogo()
+            Spacer(modifier = Modifier.height(32.dp))
+            CircularProgressIndicator(
+                color = Color(0xFFF5C453)
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    if (!uiState.isInitialized) {
+        MobileSplashScreen()
+        return
+    }
     if (!uiState.isOnboardingCompleted) {
         MobileOnboardingWizard(viewModel = viewModel)
         return

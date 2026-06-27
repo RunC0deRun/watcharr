@@ -193,7 +193,7 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
                     dispatcharrUrl = dispatcharrUrl
                 )
             }.collect { state ->
-                _uiState.value = state
+                _uiState.value = state.copy(isInitialized = true)
             }
         }
     }
@@ -386,5 +386,6 @@ data class MobileUiState(
     val epgData: Map<String, List<ProgramEntity>> = emptyMap(),
     val isOnboardingCompleted: Boolean = false,
     val useDispatcharr: Boolean = false,
-    val dispatcharrUrl: String = ""
+    val dispatcharrUrl: String = "",
+    val isInitialized: Boolean = false
 )
