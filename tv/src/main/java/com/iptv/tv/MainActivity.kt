@@ -24,6 +24,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.*
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -242,19 +244,21 @@ fun TvMainScreen(viewModel: TvViewModel) {
             // Dashboard Layout (No Video Active)
             var selectedTab by remember { mutableStateOf(TvTab.CHANNELS) }
 
-            Row(modifier = Modifier.fillMaxSize()) {
-                // Left Docked Navigation Sidebar
-                TvSidebar(
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Top Navigation Menu Bar
+                TvTopBar(
                     selectedTab = selectedTab,
                     onTabSelected = { selectedTab = it },
-                    firstItemFocusRequester = setupPlaylistFocusRequester
+                    firstItemFocusRequester = setupPlaylistFocusRequester,
+                    searchQuery = uiState.searchQuery,
+                    onSearchQueryChange = { viewModel.setSearchQuery(it) }
                 )
 
-                // Right Main Content Panel
+                // Main Content Panel below Top Bar
                 Box(
                     modifier = Modifier
+                        .fillMaxWidth()
                         .weight(1f)
-                        .fillMaxHeight()
                         .background(MaterialTheme.colorScheme.background)
                 ) {
                     when (selectedTab) {
@@ -264,6 +268,10 @@ fun TvMainScreen(viewModel: TvViewModel) {
                                 viewModel = viewModel,
                                 onSelectChannel = {
                                     viewModel.handleIntent(PlaybackIntent.SelectChannel(it))
+                                },
+                                onSelectProgramDetail = { prog, ch ->
+                                    selectedProgramForDetail = prog
+                                    selectedChannelForDetail = ch
                                 }
                             )
                         }
@@ -1173,6 +1181,117 @@ enum class TvTab {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
+fun TvTopBarItem(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    Box(
+        modifier = modifier
+            .onFocusChanged { isFocused = it.isFocused }
+            .clickable { onClick() }
+            .background(
+                color = if (isSelected) MaterialTheme.colorScheme.primary 
+                        else if (isFocused) Color.White.copy(alpha = 0.1f) 
+                        else Color.Transparent,
+                shape = RoundedCornerShape(16.dp)
+            )
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (isSelected) Color(0xFF062A1F) else Color.White
+        )
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvTopBar(
+    selectedTab: TvTab,
+    onTabSelected: (TvTab) -> Unit,
+    firstItemFocusRequester: FocusRequester,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .background(Color(0xFF062A1F))
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Logo
+        Text(
+            text = "Watcharr",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Spacer(modifier = Modifier.width(32.dp))
+
+        // Tabs
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TvTopBarItem(
+                label = "Start",
+                isSelected = selectedTab == TvTab.CHANNELS,
+                onClick = { onTabSelected(TvTab.CHANNELS) },
+                modifier = Modifier.focusRequester(firstItemFocusRequester)
+            )
+            TvTopBarItem(
+                label = "TV Guide",
+                isSelected = selectedTab == TvTab.EPG,
+                onClick = { onTabSelected(TvTab.EPG) }
+            )
+            TvTopBarItem(
+                label = "Setup",
+                isSelected = selectedTab == TvTab.SETTINGS,
+                onClick = { onTabSelected(TvTab.SETTINGS) }
+            )
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Search Bar (Pill shaped basic text field)
+        Box(
+            modifier = Modifier
+                .width(180.dp)
+                .height(36.dp)
+                .background(Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(18.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(18.dp))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
+                decorationBox = { innerTextField ->
+                    if (searchQuery.isEmpty()) {
+                        Text("Search...", color = Color.LightGray.copy(alpha = 0.6f), fontSize = 13.sp)
+                    }
+                    innerTextField()
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
 fun TvSidebar(
     selectedTab: TvTab,
     onTabSelected: (TvTab) -> Unit,
@@ -1199,7 +1318,7 @@ fun TvSidebar(
 
         TvSidebarItem(
             icon = "📺",
-            label = "Channels",
+            label = "Start",
             isSelected = selectedTab == TvTab.CHANNELS,
             onClick = { onTabSelected(TvTab.CHANNELS) },
             modifier = Modifier.focusRequester(firstItemFocusRequester)
@@ -1266,90 +1385,367 @@ fun TvSidebarItem(
     }
 }
 
+data class CarouselItem(val program: ProgramEntity, val channel: ChannelEntity)
+
+private fun formatProgramDayTime(timeMs: Long): String {
+    val sdf = java.text.SimpleDateFormat("EEE d MMM HH:mm", java.util.Locale.getDefault())
+    return sdf.format(java.util.Date(timeMs))
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvHeroCarousel(
+    carouselItems: List<CarouselItem>,
+    onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
+) {
+    var activeIndex by remember { mutableStateOf(0) }
+
+    LaunchedEffect(carouselItems) {
+        activeIndex = 0
+        if (carouselItems.size > 1) {
+            while (true) {
+                kotlinx.coroutines.delay(5000)
+                activeIndex = (activeIndex + 1) % carouselItems.size
+            }
+        }
+    }
+
+    val activeItem = carouselItems.getOrNull(activeIndex) ?: return
+
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(280.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .clickable { 
+                carouselItems.getOrNull(activeIndex)?.let {
+                    onSelectProgramDetail(it.program, it.channel)
+                }
+            }
+            .background(
+                color = if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .border(
+                width = if (isFocused) 2.dp else 0.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.secondary else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clip(RoundedCornerShape(12.dp))
+    ) {
+        Crossfade(
+            targetState = activeItem,
+            animationSpec = tween(durationMillis = 800),
+            label = "HeroCarouselTransition"
+        ) { item ->
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Background Hero Image
+                if (!item.program.iconUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = item.program.iconUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    // Gradient placeholder
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(Color(0xFF062A1F), Color(0xFF0F3E30))
+                                )
+                            )
+                    )
+                }
+
+                // Horizontal gradient overlay (restricted to 2/3 of the image width)
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(0.66f)
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFF062A1F),
+                                    Color(0xFF062A1F).copy(alpha = 0.95f),
+                                    Color(0xFF062A1F).copy(alpha = 0.8f),
+                                    Color(0xFF062A1F).copy(alpha = 0.3f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                )
+
+                // Carousel Content (Text details on the left)
+                Column(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(480.dp)
+                        .padding(horizontal = 32.dp, vertical = 24.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    // Pill Badge "Featured"
+                    Box(
+                        modifier = Modifier
+                            .background(Color(0xFFE91E63), shape = RoundedCornerShape(4.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Featured",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Program Title
+                    Text(
+                        text = item.program.title,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Subtitle: Channel, Day & Time
+                    Text(
+                        text = "${item.channel.name}, ${formatProgramDayTime(item.program.start)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.LightGray,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        // Carousel dots indicators at bottom center
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            carouselItems.forEachIndexed { idx, _ ->
+                Box(
+                    modifier = Modifier
+                        .size(if (idx == activeIndex) 8.dp else 6.dp)
+                        .background(
+                            color = if (idx == activeIndex) Color.White else Color.White.copy(alpha = 0.4f),
+                            shape = androidx.compose.foundation.shape.CircleShape
+                        )
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun TvNowLiveRow(
+    liveItems: List<CarouselItem>,
+    onSelectChannel: (ChannelEntity) -> Unit,
+    onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        items(liveItems) { item ->
+            var isFocused by remember { mutableStateOf(false) }
+            val now = System.currentTimeMillis()
+            val total = item.program.stop - item.program.start
+            val progress = if (total > 0) (now - item.program.start).toFloat() / total else 0f
+
+            Column(
+                modifier = Modifier
+                    .width(178.dp)
+                    .fillMaxHeight()
+            ) {
+                // Image and Overlays Box
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                        .onFocusChanged { isFocused = it.isFocused }
+                        .combinedClickable(
+                            onClick = { onSelectChannel(item.channel) },
+                            onLongClick = { onSelectProgramDetail(item.program, item.channel) }
+                        )
+                        .background(
+                            color = if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .border(
+                            width = if (isFocused) 2.dp else 0.dp,
+                            color = if (isFocused) MaterialTheme.colorScheme.secondary else Color.Transparent,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .clip(RoundedCornerShape(8.dp))
+                ) {
+                    // Landscape Poster
+                    if (!item.program.iconUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = item.program.iconUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        // Fallback: Channel logo in Center
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF0F3E30)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (!item.channel.logoUrl.isNullOrEmpty()) {
+                                AsyncImage(
+                                    model = item.channel.logoUrl,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    contentScale = ContentScale.Fit
+                                )
+                            } else {
+                                Text(
+                                    text = item.channel.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    // Progress Bar Overlay at the bottom edge of the image
+                    LinearProgressIndicator(
+                        progress = { progress.coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .align(Alignment.BottomCenter),
+                        color = Color(0xFFE91E63), // Accent Magenta
+                        trackColor = Color.White.copy(alpha = 0.2f)
+                    )
+
+                    // Small Channel Logo Overlay in bottom-left corner (above progress bar)
+                    if (!item.channel.logoUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = item.channel.logoUrl,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(start = 8.dp, bottom = 12.dp)
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color.White.copy(alpha = 0.8f))
+                                .padding(2.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Text labels below card
+                Text(
+                    text = item.program.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "${item.channel.name}, ${formatTimeRange(item.program.start, item.program.stop)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.LightGray,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvChannelsGrid(
     uiState: TvUiState,
     viewModel: TvViewModel,
-    onSelectChannel: (ChannelEntity) -> Unit
+    onSelectChannel: (ChannelEntity) -> Unit,
+    onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {
+    val carouselItems = remember(uiState.epgData, uiState.channels) {
+        val now = System.currentTimeMillis()
+        val twoHours = 2 * 60 * 60 * 1000
+        val items = mutableListOf<CarouselItem>()
+        for (channel in uiState.channels) {
+            val programs = uiState.epgData[channel.url] ?: emptyList()
+            for (prog in programs) {
+                if (prog.start >= now && prog.start <= now + twoHours) {
+                    items.add(CarouselItem(prog, channel))
+                }
+            }
+        }
+        if (items.size >= 3) {
+            items.shuffled().take(3)
+        } else {
+            val fallbackItems = mutableListOf<CarouselItem>()
+            for (channel in uiState.channels) {
+                val programs = uiState.epgData[channel.url] ?: emptyList()
+                for (prog in programs) {
+                    if (prog.stop > now) {
+                        fallbackItems.add(CarouselItem(prog, channel))
+                    }
+                }
+            }
+            if (fallbackItems.size >= 3) {
+                fallbackItems.shuffled().take(3)
+            } else {
+                val allItems = mutableListOf<CarouselItem>()
+                for (channel in uiState.channels) {
+                    val programs = uiState.epgData[channel.url] ?: emptyList()
+                    for (prog in programs) {
+                        allItems.add(CarouselItem(prog, channel))
+                    }
+                }
+                allItems.shuffled().take(3)
+            }
+        }
+    }
+
+    val liveItems = remember(uiState.epgData, uiState.channels) {
+        val items = mutableListOf<CarouselItem>()
+        for (channel in uiState.channels) {
+            val programs = uiState.epgData[channel.url] ?: emptyList()
+            val current = programs.getOrNull(0)
+            if (current != null) {
+                items.add(CarouselItem(current, channel))
+            }
+        }
+        items
+      }
+
+    val isFilterActive = uiState.searchQuery.isNotEmpty() || uiState.selectedGroup != null
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
+            .padding(top = 8.dp, start = 24.dp, end = 24.dp, bottom = 12.dp)
     ) {
-        // Top Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "Watcharr TV Channels",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Text(
-                    text = "Select a channel to start watching",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-            }
 
-            // Search Bar
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = { viewModel.setSearchQuery(it) },
-                placeholder = { Text("Search channels...") },
-                singleLine = true,
-                modifier = Modifier.width(300.dp),
-                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.Gray
-                )
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Categories Row
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            item {
-                FilterChip(
-                    selected = uiState.selectedGroup == null,
-                    onClick = { viewModel.selectGroup(null) }
-                ) {
-                    Text("All")
-                }
-            }
-            item {
-                FilterChip(
-                    selected = uiState.selectedGroup == "Favorites",
-                    onClick = { viewModel.selectGroup("Favorites") }
-                ) {
-                    Text("★ Favorites")
-                }
-            }
-            items(uiState.groups) { group ->
-                FilterChip(
-                    selected = uiState.selectedGroup == group,
-                    onClick = { viewModel.selectGroup(group) }
-                ) {
-                    Text(group)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Grid Content
         if (uiState.isLoadingPlaylist) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -1363,12 +1759,99 @@ fun TvChannelsGrid(
                 )
             }
         } else {
-            val columns = 5
-            val rows = (uiState.channels.size + columns - 1) / columns
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                if (!isFilterActive) {
+                    // Hero Carousel Section
+                    if (carouselItems.isNotEmpty()) {
+                        item {
+                            TvHeroCarousel(
+                                carouselItems = carouselItems,
+                                onSelectProgramDetail = onSelectProgramDetail
+                            )
+                        }
+                    }
+
+                    // Now Live Section
+                    if (liveItems.isNotEmpty()) {
+                        item {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "NOW LIVE",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "• All channels",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                TvNowLiveRow(
+                                    liveItems = liveItems,
+                                    onSelectChannel = onSelectChannel,
+                                    onSelectProgramDetail = onSelectProgramDetail
+                                )
+                            }
+                        }
+                    }
+
+                    // Header for all channels browsing
+                    item {
+                        Text(
+                            text = "BROWSE ALL CHANNELS",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(top = 16.dp)
+                        )
+                    }
+                }
+
+                // Categories Row (Only show categories/filters here)
+                item {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item {
+                            FilterChip(
+                                selected = uiState.selectedGroup == null,
+                                onClick = { viewModel.selectGroup(null) }
+                            ) {
+                                Text("All")
+                            }
+                        }
+                        item {
+                            FilterChip(
+                                selected = uiState.selectedGroup == "Favorites",
+                                onClick = { viewModel.selectGroup("Favorites") }
+                            ) {
+                                Text("★ Favorites")
+                            }
+                        }
+                        items(uiState.groups) { group ->
+                            FilterChip(
+                                selected = uiState.selectedGroup == group,
+                                onClick = { viewModel.selectGroup(group) }
+                            ) {
+                                Text(group)
+                            }
+                        }
+                    }
+                }
+
+                // Grid Content Row Items
+                val columns = 5
+                val rows = (uiState.channels.size + columns - 1) / columns
                 items(rows) { rowIndex ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1382,7 +1865,7 @@ fun TvChannelsGrid(
                                     TvChannelGridItem(
                                         channel = channel,
                                         onClick = { onSelectChannel(channel) },
-                                        onLongClick = { 
+                                        onLongClick = {
                                             viewModel.toggleFavorite(channel.url)
                                             Toast.makeText(viewModel.getApplication(), "Favorite toggled for ${channel.name}", Toast.LENGTH_SHORT).show()
                                         }
