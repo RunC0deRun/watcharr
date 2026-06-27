@@ -5,7 +5,7 @@ import com.iptv.shared.data.db.ChannelEntity
 sealed interface PlaybackState {
     data object Idle : PlaybackState
     data object Loading : PlaybackState
-    data class Playing(val channel: ChannelEntity) : PlaybackState
+    data class Playing(val channel: ChannelEntity, val isVideoRestricted: Boolean = false) : PlaybackState
     data class Error(val message: String) : PlaybackState
 }
 

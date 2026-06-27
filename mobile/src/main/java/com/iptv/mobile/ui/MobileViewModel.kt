@@ -35,7 +35,7 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
     private val programDao = app.database.programDao()
     private val favoriteDao = app.database.favoriteDao()
     
-    val playerEngine = PlayerEngine(application)
+    val playerEngine = com.iptv.shared.playback.PlayerEngineProvider.get(application)
 
     private val _isLoadingPlaylist = MutableStateFlow(false)
     private val _playlistUrlInput = MutableStateFlow("")
@@ -166,6 +166,7 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
                 loadPlaylist(intent.m3uUrl)
             }
             is PlaybackIntent.SelectChannel -> {
+                playerEngine.setActiveChannelList(_uiState.value.channels)
                 playerEngine.play(intent.channel)
             }
             is PlaybackIntent.TogglePlay -> {

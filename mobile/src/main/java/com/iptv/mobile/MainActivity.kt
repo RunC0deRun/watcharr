@@ -606,6 +606,8 @@ fun VideoPlayerContainer(
 ) {
     val player = remember(viewModel) { viewModel.playerEngine.getPlayer() }
 
+    val isRestricted = (state is PlaybackState.Playing && state.isVideoRestricted)
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -613,18 +615,49 @@ fun VideoPlayerContainer(
             .clip(if (isFullscreen) RoundedCornerShape(0.dp) else RoundedCornerShape(12.dp))
             .background(Color.Black)
     ) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    this.player = player
-                    useController = true
-                    setFullscreenButtonClickListener { isFullScreen ->
-                        onToggleFullscreen()
+        if (!isRestricted) {
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        this.player = player
+                        useController = true
+                        setFullscreenButtonClickListener { isFullScreen ->
+                            onToggleFullscreen()
+                        }
                     }
+                },
+                update = { view ->
+                    view.player = player
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF151525)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(24.dp)
+                ) {
+                    Text(
+                        text = "⚠️ Video Paused While Driving",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFFD166)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Safety Mode: Video stream is hidden while the vehicle is in motion. Audio continues playing.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFE2E2EC),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
                 }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+            }
+        }
 
         when (state) {
             is PlaybackState.Loading -> {

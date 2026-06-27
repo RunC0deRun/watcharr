@@ -30,6 +30,8 @@ class PlayerEngine(private val context: Context) {
     private var retryJob: Job? = null
     private var retryAttempt = 0
     private var currentChannel: ChannelEntity? = null
+    private var activeChannelList: List<ChannelEntity> = emptyList()
+    private var isVideoRestrictedState = false
 
     fun getPlayer(): ExoPlayer {
         return exoPlayer ?: createPlayer().also { exoPlayer = it }
@@ -65,7 +67,7 @@ class PlayerEngine(private val context: Context) {
                     Player.STATE_READY -> {
                         retryAttempt = 0
                         currentChannel?.let {
-                            _playbackState.value = PlaybackState.Playing(it)
+                            _playbackState.value = PlaybackState.Playing(it, isVideoRestrictedState)
                         }
                     }
                     Player.STATE_ENDED -> {
@@ -104,6 +106,7 @@ class PlayerEngine(private val context: Context) {
         _playbackState.value = PlaybackState.Loading
         player.setMediaItem(mediaItem)
         player.prepare()
+        setVideoEnabled(!isVideoRestrictedState)
         player.playWhenReady = true
     }
 
@@ -138,6 +141,51 @@ class PlayerEngine(private val context: Context) {
         exoPlayer?.release()
         exoPlayer = null
         _playbackState.value = PlaybackState.Idle
+    }
+
+    fun setActiveChannelList(channels: List<ChannelEntity>) {
+        activeChannelList = channels
+    }
+
+    fun setCurrentChannel(channel: ChannelEntity) {
+        currentChannel = channel
+    }
+
+    fun setVideoEnabled(enabled: Boolean) {
+        val player = exoPlayer ?: return
+        val parameters = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, !enabled)
+            .build()
+        player.trackSelectionParameters = parameters
+    }
+
+    fun updateVideoRestriction(restricted: Boolean) {
+        isVideoRestrictedState = restricted
+        setVideoEnabled(!restricted)
+        val state = _playbackState.value
+        if (state is PlaybackState.Playing) {
+            _playbackState.value = state.copy(isVideoRestricted = restricted)
+        }
+    }
+
+    fun playNextChannel() {
+        val current = currentChannel ?: return
+        if (activeChannelList.isEmpty()) return
+        val index = activeChannelList.indexOfFirst { it.url == current.url }
+        if (index != -1) {
+            val nextIndex = (index + 1) % activeChannelList.size
+            play(activeChannelList[nextIndex])
+        }
+    }
+
+    fun playPreviousChannel() {
+        val current = currentChannel ?: return
+        if (activeChannelList.isEmpty()) return
+        val index = activeChannelList.indexOfFirst { it.url == current.url }
+        if (index != -1) {
+            val prevIndex = (index - 1 + activeChannelList.size) % activeChannelList.size
+            play(activeChannelList[prevIndex])
+        }
     }
 
     companion object {
