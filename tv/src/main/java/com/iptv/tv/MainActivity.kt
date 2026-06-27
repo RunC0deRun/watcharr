@@ -45,7 +45,14 @@ import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Size
 import com.google.zxing.BarcodeFormat
+import androidx.compose.foundation.border
 import com.google.zxing.qrcode.QRCodeWriter
+import coil.compose.AsyncImage
+
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
+
 
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -212,312 +219,47 @@ fun TvMainScreen(viewModel: TvViewModel) {
             }
         } else {
             // Dashboard Layout (No Video Active)
+            var selectedTab by remember { mutableStateOf(TvTab.CHANNELS) }
+
             Row(modifier = Modifier.fillMaxSize()) {
-                // Left Panel: Channel list and playlist config
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(420.dp)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = "Watcharr TV",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "Privacy-first IPTV Client",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
+                // Left Docked Navigation Sidebar
+                TvSidebar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    firstItemFocusRequester = setupPlaylistFocusRequester
+                )
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (uiState.isLoadingEpg) {
-                            CircularProgressIndicator(
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Button(
-                            onClick = { showUrlDialog = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(setupPlaylistFocusRequester)
-                        ) {
-                            Text("Setup Playlist & EPG")
-                        }
-                    }
-
-                    // Search Bar
-                    OutlinedTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = { viewModel.setSearchQuery(it) },
-                        placeholder = { Text("Search channels...") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = Color.Gray
-                        )
-                    )
-
-                    // Categories horizontal row
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        item {
-                            FilterChip(
-                                selected = uiState.selectedGroup == null,
-                                onClick = { viewModel.selectGroup(null) }
-                            ) {
-                                Text("All")
-                            }
-                        }
-                        item {
-                            FilterChip(
-                                selected = uiState.selectedGroup == "Favorites",
-                                onClick = { viewModel.selectGroup("Favorites") }
-                            ) {
-                                Text("★ Favorites")
-                            }
-                        }
-                        items(uiState.groups) { group ->
-                            FilterChip(
-                                selected = uiState.selectedGroup == group,
-                                onClick = { viewModel.selectGroup(group) }
-                            ) {
-                                Text(group)
-                            }
-                        }
-                    }
-
-                    // Channels List
-                    if (uiState.isLoadingPlaylist) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                        }
-                    } else if (uiState.channels.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (uiState.searchQuery.isNotEmpty()) "No matching channels." else "No channels. Select setup above to load a playlist.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(uiState.channels) { channel ->
-                                val programs = uiState.epgData[channel.url] ?: emptyList()
-                                val current = programs.firstOrNull()
-                                val next = programs.firstOrNull { it.start > System.currentTimeMillis() }
-                                val isFav = uiState.favoriteUrls.contains(channel.url)
-                                
-                                TvChannelItem(
-                                    channel = channel,
-                                    currentProgram = current,
-                                    nextProgram = next,
-                                    isFavorite = isFav,
-                                    onLongClick = { viewModel.toggleFavorite(channel.url) },
-                                    onClick = {
-                                        viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Right Panel: Help/Info Area
+                // Right Main Content Panel
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black),
-                    contentAlignment = Alignment.Center
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.background)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Select a channel to play",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Controls: D-pad Left (Swapper), D-pad Center/Right (Guide), Long press card to favorite",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    if (showUrlDialog) {
-        var isDispatcharrMode by remember { mutableStateOf(uiState.useDispatcharr) }
-        var dispatcharrInput by remember { mutableStateOf(uiState.dispatcharrUrl) }
-        var m3uInput by remember { mutableStateOf(uiState.playlistUrlInput) }
-        var epgInput by remember { mutableStateOf(uiState.epgUrlInput) }
-
-        val dialogFocusRequester = remember { FocusRequester() }
-        LaunchedEffect(Unit) {
-            dialogFocusRequester.requestFocus()
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.85f))
-                .clickable(enabled = true, onClick = { showUrlDialog = false }),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(550.dp)
-                    .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp))
-                    .padding(24.dp)
-                    .clickable(enabled = false) {}
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = "Configure Playlist & EPG",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-
-                    // Tab selector
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = { isDispatcharrMode = true },
-                            modifier = Modifier.weight(1f).focusRequester(dialogFocusRequester),
-                            colors = ButtonDefaults.colors(
-                                containerColor = if (isDispatcharrMode) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.2f),
-                                focusedContainerColor = if (isDispatcharrMode) MaterialTheme.colorScheme.primary else Color.Gray
-                            )
-                        ) {
-                            Text("Dispatcharr Server")
-                        }
-                        Button(
-                            onClick = { isDispatcharrMode = false },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.colors(
-                                containerColor = if (!isDispatcharrMode) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.2f),
-                                focusedContainerColor = if (!isDispatcharrMode) MaterialTheme.colorScheme.primary else Color.Gray
-                            )
-                        ) {
-                            Text("Custom URLs")
-                        }
-                    }
-
-                    if (isDispatcharrMode) {
-                        OutlinedTextField(
-                            value = dispatcharrInput,
-                            onValueChange = { dispatcharrInput = it },
-                            label = { Text("Dispatcharr Server URL") },
-                            placeholder = { Text("http://192.168.1.100:8080") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = Color.Gray
-                            )
-                        )
-                    } else {
-                        OutlinedTextField(
-                            value = m3uInput,
-                            onValueChange = { m3uInput = it },
-                            label = { Text("M3U Playlist URL") },
-                            placeholder = { Text("http://...") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = Color.Gray
-                            )
-                        )
-
-                        OutlinedTextField(
-                            value = epgInput,
-                            onValueChange = { epgInput = it },
-                            label = { Text("EPG XMLTV URL") },
-                            placeholder = { Text("http://...") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = Color.Gray
-                            )
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                if (isDispatcharrMode) {
-                                    if (dispatcharrInput.isNotEmpty()) {
-                                        val m3u = "$dispatcharrInput/output/m3u"
-                                        val epg = "$dispatcharrInput/output/epg"
-                                        viewModel.saveConfigAndCompleteOnboarding(m3u, epg, dispatcharrInput, true)
-                                    }
-                                } else {
-                                    if (m3uInput.isNotEmpty()) {
-                                        viewModel.saveConfigAndCompleteOnboarding(m3uInput, epgInput, null, false)
-                                    }
+                    when (selectedTab) {
+                        TvTab.CHANNELS -> {
+                            TvChannelsGrid(
+                                uiState = uiState,
+                                viewModel = viewModel,
+                                onSelectChannel = {
+                                    viewModel.handleIntent(PlaybackIntent.SelectChannel(it))
                                 }
-                                showUrlDialog = false
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Save")
-                        }
-
-                        Button(
-                            onClick = { showUrlDialog = false },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.colors(
-                                containerColor = Color.Gray.copy(alpha = 0.2f),
-                                focusedContainerColor = Color.Gray
                             )
-                        ) {
-                            Text("Cancel")
+                        }
+                        TvTab.EPG -> {
+                            TvFullEpgGuide(
+                                uiState = uiState,
+                                viewModel = viewModel,
+                                onSelectChannel = {
+                                    viewModel.handleIntent(PlaybackIntent.SelectChannel(it))
+                                }
+                            )
+                        }
+                        TvTab.SETTINGS -> {
+                            TvSettingsPanel(
+                                uiState = uiState,
+                                viewModel = viewModel
+                            )
                         }
                     }
                 }
@@ -1272,4 +1014,652 @@ fun QrCodeImage(content: String, modifier: Modifier = Modifier) {
         Box(modifier = modifier.background(Color.White))
     }
 }
+
+enum class TvTab {
+    CHANNELS, EPG, SETTINGS
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvSidebar(
+    selectedTab: TvTab,
+    onTabSelected: (TvTab) -> Unit,
+    firstItemFocusRequester: FocusRequester,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .width(96.dp)
+            .background(Color(0xFF0F0F28))
+            .padding(vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        // Logo
+        Text(
+            text = "W",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        TvSidebarItem(
+            icon = "📺",
+            label = "Channels",
+            isSelected = selectedTab == TvTab.CHANNELS,
+            onClick = { onTabSelected(TvTab.CHANNELS) },
+            modifier = Modifier.focusRequester(firstItemFocusRequester)
+        )
+
+        TvSidebarItem(
+            icon = "📅",
+            label = "TV Guide",
+            isSelected = selectedTab == TvTab.EPG,
+            onClick = { onTabSelected(TvTab.EPG) }
+        )
+
+        TvSidebarItem(
+            icon = "⚙️",
+            label = "Setup",
+            isSelected = selectedTab == TvTab.SETTINGS,
+            onClick = { onTabSelected(TvTab.SETTINGS) }
+        )
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvSidebarItem(
+    icon: String,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    Box(
+        modifier = modifier
+            .size(64.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .clickable { onClick() }
+            .background(
+                color = if (isFocused) MaterialTheme.colorScheme.primary 
+                        else if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) 
+                        else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .border(
+                width = if (isFocused) 2.dp else if (isSelected) 1.dp else 0.dp,
+                color = if (isFocused) Color.White else if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(text = icon, style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White,
+                fontSize = 10.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvChannelsGrid(
+    uiState: TvUiState,
+    viewModel: TvViewModel,
+    onSelectChannel: (ChannelEntity) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        // Top Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Watcharr TV Channels",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = "Select a channel to start watching",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            // Search Bar
+            OutlinedTextField(
+                value = uiState.searchQuery,
+                onValueChange = { viewModel.setSearchQuery(it) },
+                placeholder = { Text("Search channels...") },
+                singleLine = true,
+                modifier = Modifier.width(300.dp),
+                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = Color.Gray
+                )
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Categories Row
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                FilterChip(
+                    selected = uiState.selectedGroup == null,
+                    onClick = { viewModel.selectGroup(null) }
+                ) {
+                    Text("All")
+                }
+            }
+            item {
+                FilterChip(
+                    selected = uiState.selectedGroup == "Favorites",
+                    onClick = { viewModel.selectGroup("Favorites") }
+                ) {
+                    Text("★ Favorites")
+                }
+            }
+            items(uiState.groups) { group ->
+                FilterChip(
+                    selected = uiState.selectedGroup == group,
+                    onClick = { viewModel.selectGroup(group) }
+                ) {
+                    Text(group)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Grid Content
+        if (uiState.isLoadingPlaylist) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        } else if (uiState.channels.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = if (uiState.searchQuery.isNotEmpty()) "No matching channels." else "No channels loaded.",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.Gray
+                )
+            }
+        } else {
+            val columns = 5
+            val rows = (uiState.channels.size + columns - 1) / columns
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(rows) { rowIndex ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        for (colIndex in 0 until columns) {
+                            val itemIndex = rowIndex * columns + colIndex
+                            if (itemIndex < uiState.channels.size) {
+                                val channel = uiState.channels[itemIndex]
+                                Box(modifier = Modifier.weight(1f)) {
+                                    TvChannelGridItem(
+                                        channel = channel,
+                                        onClick = { onSelectChannel(channel) },
+                                        onLongClick = { 
+                                            viewModel.toggleFavorite(channel.url)
+                                            Toast.makeText(viewModel.getApplication(), "Favorite toggled for ${channel.name}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun TvChannelGridItem(
+    channel: ChannelEntity,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .aspectRatio(1.5f)
+            .fillMaxWidth()
+            .onFocusChanged { isFocused = it.isFocused }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .background(
+                color = if (isFocused) MaterialTheme.colorScheme.primary 
+                        else MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .border(
+                width = if (isFocused) 2.dp else 0.dp,
+                color = if (isFocused) Color.White else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (!channel.logoUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = channel.logoUrl,
+                    contentDescription = channel.name,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(4.dp),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Text(
+                    text = channel.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            
+            if (!channel.logoUrl.isNullOrEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = channel.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvFullEpgGuide(
+    uiState: TvUiState,
+    viewModel: TvViewModel,
+    onSelectChannel: (ChannelEntity) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Column {
+                Text(
+                    text = "TV Program Guide",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = "Browse current and upcoming programs across all channels",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+        }
+        
+        items(uiState.channels) { channel ->
+            val programs = uiState.epgData[channel.url] ?: emptyList()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(84.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                var isChFocused by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .width(140.dp)
+                        .fillMaxHeight()
+                        .onFocusChanged { isChFocused = it.isFocused }
+                        .clickable { onSelectChannel(channel) }
+                        .background(
+                            color = if (isChFocused) MaterialTheme.colorScheme.primary 
+                                    else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .border(
+                            width = if (isChFocused) 2.dp else 0.dp,
+                            color = if (isChFocused) Color.White else Color.Transparent,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!channel.logoUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = channel.logoUrl,
+                            contentDescription = channel.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Text(
+                            text = channel.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 2,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                
+                if (programs.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No program data available", color = Color.Gray)
+                    }
+                } else {
+                    LazyRow(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        items(programs) { program ->
+                            val durationMin = (program.stop - program.start) / 60000
+                            val cardWidth = (durationMin * 5).coerceIn(160L, 600L).toInt().dp
+                            
+                            var isProgFocused by remember { mutableStateOf(false) }
+                            
+                            Box(
+                                modifier = Modifier
+                                    .width(cardWidth)
+                                    .fillMaxHeight()
+                                    .onFocusChanged { isProgFocused = it.isFocused }
+                                    .clickable { onSelectChannel(channel) }
+                                    .background(
+                                        color = if (isProgFocused) Color(0xFF1B5E20)
+                                                else MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .border(
+                                        width = if (isProgFocused) 2.dp else 0.dp,
+                                        color = if (isProgFocused) Color.White else Color.Transparent,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(10.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = program.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = formatTimeRange(program.start, program.stop),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (isProgFocused) Color.White else MaterialTheme.colorScheme.secondary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvSettingsPanel(
+    uiState: TvUiState,
+    viewModel: TvViewModel
+) {
+    var isDispatcharrMode by remember { mutableStateOf(uiState.useDispatcharr) }
+    var dispatcharrInput by remember { mutableStateOf(uiState.dispatcharrUrl) }
+    var m3uInput by remember { mutableStateOf(uiState.playlistUrlInput) }
+    var epgInput by remember { mutableStateOf(uiState.epgUrlInput) }
+
+    LaunchedEffect(Unit) {
+        viewModel.startSetupServer()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.stopSetupServer()
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+    ) {
+        Text(
+            text = "Watcharr TV Settings",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+        Text(
+            text = "Configure your connection URLs or pair with a mobile device",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.secondary,
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(32.dp)
+        ) {
+            // Left Pane: Setup Form
+            Column(
+                modifier = Modifier
+                    .weight(1.2f)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f), shape = RoundedCornerShape(12.dp))
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text("Connection Config", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { isDispatcharrMode = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.colors(
+                            containerColor = if (isDispatcharrMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Text("Dispatcharr Server")
+                    }
+                    Button(
+                        onClick = { isDispatcharrMode = false },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.colors(
+                            containerColor = if (!isDispatcharrMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Text("Custom URLs")
+                    }
+                }
+
+                if (isDispatcharrMode) {
+                    OutlinedTextField(
+                        value = dispatcharrInput,
+                        onValueChange = { dispatcharrInput = it },
+                        label = { Text("Server URL") },
+                        placeholder = { Text("http://192.168.1.100:8080") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = m3uInput,
+                        onValueChange = { m3uInput = it },
+                        label = { Text("M3U Playlist URL") },
+                        placeholder = { Text("http://...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+                    OutlinedTextField(
+                        value = epgInput,
+                        onValueChange = { epgInput = it },
+                        label = { Text("EPG XMLTV URL") },
+                        placeholder = { Text("http://...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color.Gray
+                        )
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        if (isDispatcharrMode) {
+                            if (dispatcharrInput.isNotEmpty()) {
+                                val m3u = "$dispatcharrInput/output/m3u"
+                                val epg = "$dispatcharrInput/output/epg"
+                                viewModel.saveConfigAndCompleteOnboarding(m3u, epg, dispatcharrInput, true)
+                            }
+                        } else {
+                            if (m3uInput.isNotEmpty()) {
+                                viewModel.saveConfigAndCompleteOnboarding(m3uInput, epgInput, null, false)
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Apply & Reload")
+                }
+            }
+
+            // Right Pane: QR Pairing Code
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f), shape = RoundedCornerShape(12.dp))
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text("Pair Mobile Device", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Scan this QR code using the mobile app Settings to pair.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (uiState.setupQrUrl.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .size(160.dp)
+                            .background(Color.White, shape = RoundedCornerShape(8.dp))
+                            .padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        QrCodeImage(content = uiState.setupQrUrl, modifier = Modifier.fillMaxSize())
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(160.dp)
+                            .background(Color.DarkGray, shape = RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = uiState.setupStatus,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
 

@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.play.services.code.scanner)
+    implementation(libs.coil.compose)
 
     debugImplementation(libs.compose.ui.tooling)
 
