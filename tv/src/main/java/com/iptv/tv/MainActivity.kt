@@ -48,6 +48,7 @@ import com.google.zxing.BarcodeFormat
 import androidx.compose.foundation.border
 import com.google.zxing.qrcode.QRCodeWriter
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -570,8 +571,8 @@ fun TvEpgGuideOverlay(
     val focusRequester = remember { FocusRequester() }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
-    LaunchedEffect(activeChannelIndex) {
-        if (activeChannelIndex != -1) {
+    LaunchedEffect(activeChannelIndex, uiState.channels) {
+        if (uiState.channels.isNotEmpty() && activeChannelIndex in uiState.channels.indices) {
             listState.scrollToItem(activeChannelIndex)
         }
         focusRequester.requestFocus()
@@ -626,8 +627,8 @@ fun TvEpgGuideOverlay(
                     ) {
                         itemsIndexed(uiState.channels) { index, channel ->
                             val programs = uiState.epgData[channel.url] ?: emptyList()
-                            val current = programs.firstOrNull()
-                            val upcoming = programs.filter { it.start > System.currentTimeMillis() }
+                            val current = programs.getOrNull(0)
+                            val upcoming = programs.drop(1)
                             
                             val isFav = uiState.favoriteUrls.contains(channel.url)
 
@@ -1403,11 +1404,22 @@ fun TvFullEpgGuide(
                     contentAlignment = Alignment.Center
                 ) {
                     if (!channel.logoUrl.isNullOrEmpty()) {
-                        AsyncImage(
+                        SubcomposeAsyncImage(
                             model = channel.logoUrl,
                             contentDescription = channel.name,
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
+                            contentScale = ContentScale.Fit,
+                            error = {
+                                Text(
+                                    text = channel.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 2,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         )
                     } else {
                         Text(
