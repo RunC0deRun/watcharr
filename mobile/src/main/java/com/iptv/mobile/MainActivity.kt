@@ -96,12 +96,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun IPTVAppTheme(content: @Composable () -> Unit) {
     val darkColors = darkColorScheme(
-        primary = Color(0xFF9D4EDD), // Deep purple
-        secondary = Color(0xFFE0AAFF), // Soft lavender
-        background = Color(0xFF0F0F1E), // Slate dark
-        surface = Color(0xFF1E1E38), // Slightly lighter slate
-        onBackground = Color(0xFFF7F5FA),
-        onSurface = Color(0xFFF7F5FA)
+        primary = Color(0xFFDF9A28), // Mustard Yellow
+        secondary = Color(0xFFF5C453), // Light Mustard
+        background = Color(0xFF062A1F), // Dark Forest Green
+        surface = Color(0xFF0F3E30), // Medium Forest Green
+        onBackground = Color(0xFFFAF8F5),
+        onSurface = Color(0xFFFAF8F5)
     )
     MaterialTheme(
         colorScheme = darkColors,
@@ -728,7 +728,7 @@ fun VideoPlayerContainer(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFF151525)),
+                    .background(Color(0xFF062A1F)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -739,13 +739,13 @@ fun VideoPlayerContainer(
                         text = "⚠️ Video Paused While Driving",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFFD166)
+                        color = Color(0xFFDF9A28)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Safety Mode: Video stream is hidden while the vehicle is in motion. Audio continues playing.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFE2E2EC),
+                        color = Color(0xFFFAF8F5),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }

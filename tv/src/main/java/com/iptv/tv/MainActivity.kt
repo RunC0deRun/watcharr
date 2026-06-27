@@ -95,12 +95,12 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TvAppTheme(content: @Composable () -> Unit) {
     val darkColors = darkColorScheme(
-        primary = Color(0xFF9D4EDD),
-        secondary = Color(0xFFE0AAFF),
-        background = Color(0xFF070714),
-        surface = Color(0xFF13132B),
-        onBackground = Color(0xFFF7F5FA),
-        onSurface = Color(0xFFF7F5FA)
+        primary = Color(0xFFDF9A28), // Mustard Yellow
+        secondary = Color(0xFFF5C453), // Light Mustard
+        background = Color(0xFF062A1F), // Dark Forest Green
+        surface = Color(0xFF0F3E30), // Medium Forest Green
+        onBackground = Color(0xFFFAF8F5),
+        onSurface = Color(0xFFFAF8F5)
     )
     MaterialTheme(
         colorScheme = darkColors,
@@ -126,8 +126,10 @@ fun TvMainScreen(viewModel: TvViewModel) {
 
     val playerActive = uiState.playbackState !is PlaybackState.Idle
 
-    LaunchedEffect(key1 = Unit) {
-        if (!playerActive) {
+    LaunchedEffect(playerActive) {
+        if (playerActive) {
+            playerFocusRequester.requestFocus()
+        } else {
             setupPlaylistFocusRequester.requestFocus()
         }
     }
@@ -145,7 +147,7 @@ fun TvMainScreen(viewModel: TvViewModel) {
                     .focusRequester(playerFocusRequester)
                     .focusable()
                     .onKeyEvent { keyEvent ->
-                        if (keyEvent.type == KeyEventType.KeyDown) {
+                        if (keyEvent.type == KeyEventType.KeyUp) {
                             if (showSidebar) {
                                 if (keyEvent.key == Key.Back || keyEvent.key == Key.DirectionRight) {
                                     showSidebar = false
@@ -180,6 +182,12 @@ fun TvMainScreen(viewModel: TvViewModel) {
                                     }
                                     else -> false
                                 }
+                            }
+                        } else if (keyEvent.type == KeyEventType.KeyDown) {
+                            // Consume KeyDown to prevent default OS actions/sounds, and prepare for KeyUp
+                            when (keyEvent.key) {
+                                Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight, Key.DirectionCenter, Key.Enter, Key.Back -> true
+                                else -> false
                             }
                         } else false
                     }
@@ -315,14 +323,14 @@ fun TvChannelItem(
                         text = channel.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = if (isFocused) Color(0xFF062A1F) else Color.White,
                         modifier = Modifier.weight(1f, fill = false)
                     )
                     if (isFavorite) {
                         Text(
                             text = "★",
                             style = MaterialTheme.typography.titleMedium,
-                            color = Color(0xFFFFD700),
+                            color = if (isFocused) Color(0xFF062A1F) else Color(0xFFFFD700),
                             modifier = Modifier.padding(start = 4.dp)
                         )
                     }
@@ -333,7 +341,7 @@ fun TvChannelItem(
                     Text(
                         text = groupTitle,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.LightGray.copy(alpha = 0.8f)
+                        color = if (isFocused) Color(0xFF062A1F).copy(alpha = 0.8f) else Color.LightGray.copy(alpha = 0.8f)
                     )
                 }
 
@@ -341,7 +349,7 @@ fun TvChannelItem(
                     Text(
                         text = "Now: ${currentProgram.title}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFE0AAFF),
+                        color = if (isFocused) Color(0xFF062A1F) else MaterialTheme.colorScheme.secondary,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -350,7 +358,7 @@ fun TvChannelItem(
                     Text(
                         text = "Next: ${nextProgram.title}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.LightGray.copy(alpha = 0.6f)
+                        color = if (isFocused) Color(0xFF062A1F).copy(alpha = 0.7f) else Color.LightGray.copy(alpha = 0.6f)
                     )
                 }
             }
@@ -368,7 +376,11 @@ fun TvVideoPlayer(viewModel: TvViewModel, state: PlaybackState) {
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     this.player = player
-                    useController = true
+                    useController = false
+                    isFocusable = false
+                    isFocusableInTouchMode = false
+                    descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+                    isClickable = false
                 }
             },
             modifier = Modifier.fillMaxSize()
@@ -439,7 +451,7 @@ fun TvSidebarSwapper(
             modifier = Modifier
                 .width(360.dp)
                 .fillMaxHeight()
-                .background(Color(0xFF0F0F1E).copy(alpha = 0.95f))
+                .background(Color(0xFF062A1F).copy(alpha = 0.95f))
                 .padding(16.dp)
                 .onKeyEvent { keyEvent ->
                     if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionRight) {
@@ -517,13 +529,16 @@ fun TvSidebarSwapper(
                     val current = programs.firstOrNull()
                     val isFav = uiState.favoriteUrls.contains(channel.url)
 
+                    var isChCardFocused by remember { mutableStateOf(false) }
+
                     Card(
                         onClick = { onSelectChannel(channel) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .then(if (index == 0) Modifier.focusRequester(focusRequester) else Modifier),
+                            .then(if (index == 0) Modifier.focusRequester(focusRequester) else Modifier)
+                            .onFocusChanged { isChCardFocused = it.isFocused },
                         colors = CardDefaults.colors(
-                            containerColor = Color(0xFF1E1E38),
+                            containerColor = Color(0xFF0F3E30),
                             focusedContainerColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
@@ -532,14 +547,14 @@ fun TvSidebarSwapper(
                                 text = if (isFav) "★ ${channel.name}" else channel.name,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = if (isChCardFocused) Color(0xFF062A1F) else Color.White,
                                 maxLines = 1
                             )
                             if (current != null) {
                                 Text(
                                     text = current.title,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color.LightGray.copy(alpha = 0.8f),
+                                    color = if (isChCardFocused) Color(0xFF062A1F).copy(alpha = 0.8f) else Color.LightGray.copy(alpha = 0.8f),
                                     maxLines = 1
                                 )
                             }
@@ -590,7 +605,7 @@ fun TvEpgGuideOverlay(
                 .fillMaxWidth()
                 .height(280.dp)
                 .background(
-                    color = Color(0xFF13132B).copy(alpha = 0.9f),
+                    color = Color(0xFF062A1F).copy(alpha = 0.9f),
                     shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
                 )
                 .padding(16.dp)
@@ -609,8 +624,8 @@ fun TvEpgGuideOverlay(
                         color = Color.White
                     )
                     Text(
-                        text = "Press Back to Close Guide",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Press Back or Right to Close",
+                        style = MaterialTheme.typography.bodySmall,
                         color = Color.LightGray
                     )
                 }
@@ -622,7 +637,9 @@ fun TvEpgGuideOverlay(
                 } else {
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         itemsIndexed(uiState.channels) { index, channel ->
@@ -632,13 +649,16 @@ fun TvEpgGuideOverlay(
                             
                             val isFav = uiState.favoriteUrls.contains(channel.url)
 
+                            var isEpgChFocused by remember { mutableStateOf(false) }
+
                             Card(
                                 onClick = { onSelectChannel(channel) },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .then(if (index == activeChannelIndex) Modifier.focusRequester(focusRequester) else Modifier),
+                                    .then(if (index == activeChannelIndex) Modifier.focusRequester(focusRequester) else Modifier)
+                                    .onFocusChanged { isEpgChFocused = it.isFocused },
                                 colors = CardDefaults.colors(
-                                    containerColor = Color(0xFF1E1E38).copy(alpha = 0.8f),
+                                    containerColor = Color(0xFF0F3E30).copy(alpha = 0.8f),
                                     focusedContainerColor = MaterialTheme.colorScheme.primary
                                 ),
                                 scale = CardDefaults.scale(focusedScale = 1f)
@@ -653,7 +673,7 @@ fun TvEpgGuideOverlay(
                                             text = if (isFav) "★ ${channel.name}" else channel.name,
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White,
+                                            color = if (isEpgChFocused) Color(0xFF062A1F) else Color.White,
                                             maxLines = 1
                                         )
                                         channel.groupTitle?.let {
@@ -674,7 +694,7 @@ fun TvEpgGuideOverlay(
                                             Text(
                                                 text = "Now: ${current.title}",
                                                 style = MaterialTheme.typography.bodyMedium,
-                                                color = Color.White,
+                                                color = if (isEpgChFocused) Color(0xFF062A1F) else Color.White,
                                                 maxLines = 1
                                             )
                                             val now = System.currentTimeMillis()
@@ -684,11 +704,11 @@ fun TvEpgGuideOverlay(
                                             LinearProgressIndicator(
                                                 progress = progress.coerceIn(0f, 1f),
                                                 modifier = Modifier.fillMaxWidth().height(4.dp),
-                                                color = Color(0xFFE0AAFF),
-                                                trackColor = Color.Gray.copy(alpha = 0.3f)
+                                                color = if (isEpgChFocused) Color(0xFF062A1F) else MaterialTheme.colorScheme.primary,
+                                                trackColor = if (isEpgChFocused) Color(0xFF062A1F).copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.3f)
                                             )
                                         } else {
-                                            Text("No info available", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+                                            Text("No info available", color = if (isEpgChFocused) Color(0xFF062A1F).copy(alpha = 0.8f) else Color.Gray, style = MaterialTheme.typography.bodyMedium)
                                         }
                                     }
 
@@ -1057,7 +1077,7 @@ fun TvSidebar(
         modifier = modifier
             .fillMaxHeight()
             .width(96.dp)
-            .background(Color(0xFF0F0F28))
+            .background(Color(0xFF062A1F))
             .padding(vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp)
@@ -1118,7 +1138,7 @@ fun TvSidebarItem(
             )
             .border(
                 width = if (isFocused) 2.dp else if (isSelected) 1.dp else 0.dp,
-                color = if (isFocused) Color.White else if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                color = if (isFocused) MaterialTheme.colorScheme.secondary else if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
                 shape = RoundedCornerShape(12.dp)
             ),
         contentAlignment = Alignment.Center
@@ -1297,7 +1317,7 @@ fun TvChannelGridItem(
             )
             .border(
                 width = if (isFocused) 2.dp else 0.dp,
-                color = if (isFocused) Color.White else Color.Transparent,
+                color = if (isFocused) MaterialTheme.colorScheme.secondary else Color.Transparent,
                 shape = RoundedCornerShape(12.dp)
             )
             .padding(8.dp),
@@ -1323,7 +1343,7 @@ fun TvChannelGridItem(
                     text = channel.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = if (isFocused) Color(0xFF062A1F) else Color.White,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -1335,7 +1355,7 @@ fun TvChannelGridItem(
                 Text(
                     text = channel.name,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White,
+                    color = if (isFocused) Color(0xFF062A1F) else Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1397,7 +1417,7 @@ fun TvFullEpgGuide(
                         )
                         .border(
                             width = if (isChFocused) 2.dp else 0.dp,
-                            color = if (isChFocused) Color.White else Color.Transparent,
+                            color = if (isChFocused) MaterialTheme.colorScheme.secondary else Color.Transparent,
                             shape = RoundedCornerShape(8.dp)
                         )
                         .padding(8.dp),
@@ -1414,7 +1434,7 @@ fun TvFullEpgGuide(
                                     text = channel.name,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White,
+                                    color = if (isChFocused) Color(0xFF062A1F) else Color.White,
                                     maxLines = 2,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                     overflow = TextOverflow.Ellipsis
@@ -1426,7 +1446,7 @@ fun TvFullEpgGuide(
                             text = channel.name,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = if (isChFocused) Color(0xFF062A1F) else Color.White,
                             maxLines = 2,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             overflow = TextOverflow.Ellipsis
@@ -1465,13 +1485,13 @@ fun TvFullEpgGuide(
                                     .onFocusChanged { isProgFocused = it.isFocused }
                                     .clickable { onSelectChannel(channel) }
                                     .background(
-                                        color = if (isProgFocused) Color(0xFF1B5E20)
+                                        color = if (isProgFocused) MaterialTheme.colorScheme.primary
                                                 else MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
                                         shape = RoundedCornerShape(8.dp)
                                     )
                                     .border(
                                         width = if (isProgFocused) 2.dp else 0.dp,
-                                        color = if (isProgFocused) Color.White else Color.Transparent,
+                                        color = if (isProgFocused) MaterialTheme.colorScheme.secondary else Color.Transparent,
                                         shape = RoundedCornerShape(8.dp)
                                     )
                                     .padding(10.dp)
@@ -1484,14 +1504,14 @@ fun TvFullEpgGuide(
                                         text = program.title,
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White,
+                                        color = if (isProgFocused) Color(0xFF062A1F) else Color.White,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
                                         text = formatTimeRange(program.start, program.stop),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (isProgFocused) Color.White else MaterialTheme.colorScheme.secondary,
+                                        color = if (isProgFocused) Color(0xFF062A1F) else MaterialTheme.colorScheme.secondary,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 }
