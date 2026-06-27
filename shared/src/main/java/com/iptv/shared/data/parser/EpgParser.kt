@@ -31,6 +31,7 @@ object EpgParser {
         var currentStop: Long = 0L
         var currentTitle: String? = null
         var currentDesc: String? = null
+        var currentIconUrl: String? = null
 
         while (eventType != XmlPullParser.END_DOCUMENT) {
             when (eventType) {
@@ -46,6 +47,8 @@ object EpgParser {
                         currentTitle = parser.nextText()
                     } else if (name == "desc" && currentChannelId != null) {
                         currentDesc = parser.nextText()
+                    } else if (name == "icon" && currentChannelId != null) {
+                        currentIconUrl = parser.getAttributeValue(null, "src")
                     }
                 }
                 XmlPullParser.END_TAG -> {
@@ -58,7 +61,8 @@ object EpgParser {
                                     start = currentStart,
                                     stop = currentStop,
                                     title = currentTitle,
-                                    desc = currentDesc
+                                    desc = currentDesc,
+                                    iconUrl = currentIconUrl
                                 )
                             )
                         }
@@ -67,6 +71,7 @@ object EpgParser {
                         currentStop = 0L
                         currentTitle = null
                         currentDesc = null
+                        currentIconUrl = null
                     }
                 }
             }

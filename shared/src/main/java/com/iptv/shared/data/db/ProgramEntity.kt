@@ -19,5 +19,6 @@ data class ProgramEntity(
     val start: Long,
     val stop: Long,
     val title: String,
-    val desc: String?
+    val desc: String?,
+    val iconUrl: String? = null
 )

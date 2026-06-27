@@ -10,6 +10,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.animateScrollBy
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -49,7 +53,9 @@ import androidx.compose.foundation.border
 import com.google.zxing.qrcode.QRCodeWriter
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
-
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
@@ -123,6 +129,8 @@ fun TvMainScreen(viewModel: TvViewModel) {
     
     var showSidebar by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }
+    var selectedProgramForDetail by remember { mutableStateOf<ProgramEntity?>(null) }
+    var selectedChannelForDetail by remember { mutableStateOf<ChannelEntity?>(null) }
 
     val playerActive = uiState.playbackState !is PlaybackState.Idle
 
@@ -216,7 +224,11 @@ fun TvMainScreen(viewModel: TvViewModel) {
                         viewModel.handleIntent(PlaybackIntent.SelectChannel(it))
                         showGuide = false
                     },
-                    onClose = { showGuide = false }
+                    onClose = { showGuide = false },
+                    onSelectProgramDetail = { prog, ch ->
+                        selectedProgramForDetail = prog
+                        selectedChannelForDetail = ch
+                    }
                 )
             }
             
@@ -261,6 +273,10 @@ fun TvMainScreen(viewModel: TvViewModel) {
                                 viewModel = viewModel,
                                 onSelectChannel = {
                                     viewModel.handleIntent(PlaybackIntent.SelectChannel(it))
+                                },
+                                onSelectProgramDetail = { prog, ch ->
+                                    selectedProgramForDetail = prog
+                                    selectedChannelForDetail = ch
                                 }
                             )
                         }
@@ -273,6 +289,17 @@ fun TvMainScreen(viewModel: TvViewModel) {
                     }
                 }
             }
+        }
+
+        selectedProgramForDetail?.let { prog ->
+            TvProgramDetailScreen(
+                program = prog,
+                channel = selectedChannelForDetail,
+                onDismiss = {
+                    selectedProgramForDetail = null
+                    selectedChannelForDetail = null
+                }
+            )
         }
     }
 }
@@ -571,7 +598,8 @@ fun TvSidebarSwapper(
 fun TvEpgGuideOverlay(
     uiState: TvUiState,
     onSelectChannel: (ChannelEntity) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {
     val activeChannel = (uiState.playbackState as? PlaybackState.Playing)?.channel
     val activeChannelIndex = remember(uiState.channels, activeChannel) {
@@ -649,53 +677,85 @@ fun TvEpgGuideOverlay(
                             
                             val isFav = uiState.favoriteUrls.contains(channel.url)
 
-                            var isEpgChFocused by remember { mutableStateOf(false) }
-
-                            Card(
-                                onClick = { onSelectChannel(channel) },
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .then(if (index == activeChannelIndex) Modifier.focusRequester(focusRequester) else Modifier)
-                                    .onFocusChanged { isEpgChFocused = it.isFocused },
-                                colors = CardDefaults.colors(
-                                    containerColor = Color(0xFF0F3E30).copy(alpha = 0.8f),
-                                    focusedContainerColor = MaterialTheme.colorScheme.primary
-                                ),
-                                scale = CardDefaults.scale(focusedScale = 1f)
+                                    .background(Color(0xFF0F3E30).copy(alpha = 0.4f), shape = RoundedCornerShape(12.dp))
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
+                                // Cell 1: Channel Info (Focusable, Click switches channel)
+                                var isChFocused by remember { mutableStateOf(false) }
+                                Box(
+                                    modifier = Modifier
+                                        .width(140.dp)
+                                        .height(72.dp)
+                                        .then(if (index == activeChannelIndex) Modifier.focusRequester(focusRequester) else Modifier)
+                                        .onFocusChanged { isChFocused = it.isFocused }
+                                        .clickable { onSelectChannel(channel) }
+                                        .background(
+                                            color = if (isChFocused) MaterialTheme.colorScheme.primary else Color(0xFF0F3E30).copy(alpha = 0.8f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .border(
+                                            width = if (isChFocused) 2.dp else 0.dp,
+                                            color = if (isChFocused) MaterialTheme.colorScheme.secondary else Color.Transparent,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(8.dp),
+                                    contentAlignment = Alignment.CenterStart
                                 ) {
-                                    // Cell 1: Channel Name
-                                    Column(modifier = Modifier.width(130.dp)) {
+                                    Column {
                                         Text(
                                             text = if (isFav) "★ ${channel.name}" else channel.name,
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isEpgChFocused) Color(0xFF062A1F) else Color.White,
-                                            maxLines = 1
+                                            color = if (isChFocused) Color(0xFF062A1F) else Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         channel.groupTitle?.let {
                                             Text(
                                                 text = it,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = Color.LightGray.copy(alpha = 0.7f),
-                                                maxLines = 1
+                                                color = if (isChFocused) Color(0xFF062A1F).copy(alpha = 0.8f) else Color.LightGray.copy(alpha = 0.7f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
+                                }
 
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
 
-                                    // Cell 2: Now Playing with progress bar
-                                    Column(modifier = Modifier.width(220.dp)) {
-                                        if (current != null) {
+                                // Cell 2: Now Playing (Focusable, Click opens details)
+                                var isCell2Focused by remember { mutableStateOf(false) }
+                                Box(
+                                    modifier = Modifier
+                                        .width(220.dp)
+                                        .height(72.dp)
+                                        .onFocusChanged { isCell2Focused = it.isFocused }
+                                        .clickable(enabled = current != null) { current?.let { onSelectProgramDetail(it, channel) } }
+                                        .background(
+                                            color = if (isCell2Focused) MaterialTheme.colorScheme.primary else Color(0xFF0F3E30).copy(alpha = 0.8f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .border(
+                                            width = if (isCell2Focused) 2.dp else 0.dp,
+                                            color = if (isCell2Focused) MaterialTheme.colorScheme.secondary else Color.Transparent,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(8.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (current != null) {
+                                        Column {
                                             Text(
                                                 text = "Now: ${current.title}",
                                                 style = MaterialTheme.typography.bodyMedium,
-                                                color = if (isEpgChFocused) Color(0xFF062A1F) else Color.White,
-                                                maxLines = 1
+                                                color = if (isCell2Focused) Color(0xFF062A1F) else Color.White,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                             val now = System.currentTimeMillis()
                                             val total = current.stop - current.start
@@ -704,56 +764,102 @@ fun TvEpgGuideOverlay(
                                             LinearProgressIndicator(
                                                 progress = progress.coerceIn(0f, 1f),
                                                 modifier = Modifier.fillMaxWidth().height(4.dp),
-                                                color = if (isEpgChFocused) Color(0xFF062A1F) else MaterialTheme.colorScheme.primary,
-                                                trackColor = if (isEpgChFocused) Color(0xFF062A1F).copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.3f)
+                                                color = if (isCell2Focused) Color(0xFF062A1F) else MaterialTheme.colorScheme.primary,
+                                                trackColor = if (isCell2Focused) Color(0xFF062A1F).copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.3f)
                                             )
-                                        } else {
-                                            Text("No info available", color = if (isEpgChFocused) Color(0xFF062A1F).copy(alpha = 0.8f) else Color.Gray, style = MaterialTheme.typography.bodyMedium)
                                         }
+                                    } else {
+                                        Text(
+                                            text = "No info available",
+                                            color = if (isCell2Focused) Color(0xFF062A1F).copy(alpha = 0.8f) else Color.Gray,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
                                     }
+                                }
 
-                                    Spacer(modifier = Modifier.width(16.dp))
+                                Spacer(modifier = Modifier.width(16.dp))
 
-                                    // Cell 3: Next Program
-                                    Column(modifier = Modifier.width(220.dp)) {
-                                        val nextProg = upcoming.getOrNull(0)
-                                        if (nextProg != null) {
+                                // Cell 3: Next Program (Focusable, Click opens details)
+                                val nextProg = upcoming.getOrNull(0)
+                                var isCell3Focused by remember { mutableStateOf(false) }
+                                Box(
+                                    modifier = Modifier
+                                        .width(220.dp)
+                                        .height(72.dp)
+                                        .onFocusChanged { isCell3Focused = it.isFocused }
+                                        .clickable(enabled = nextProg != null) { nextProg?.let { onSelectProgramDetail(it, channel) } }
+                                        .background(
+                                            color = if (isCell3Focused) MaterialTheme.colorScheme.primary else Color(0xFF0F3E30).copy(alpha = 0.8f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .border(
+                                            width = if (isCell3Focused) 2.dp else 0.dp,
+                                            color = if (isCell3Focused) MaterialTheme.colorScheme.secondary else Color.Transparent,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(8.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (nextProg != null) {
+                                        Column {
                                             Text(
                                                 text = "Next: ${nextProg.title}",
                                                 style = MaterialTheme.typography.bodyMedium,
-                                                color = Color.LightGray,
-                                                maxLines = 1
+                                                color = if (isCell3Focused) Color(0xFF062A1F).copy(alpha = 0.9f) else Color.LightGray,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                             Text(
                                                 text = formatTimeRange(nextProg.start, nextProg.stop),
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = Color.Gray
+                                                color = if (isCell3Focused) Color(0xFF062A1F).copy(alpha = 0.7f) else Color.Gray
                                             )
-                                        } else {
-                                            Text("-", color = Color.Gray)
                                         }
+                                    } else {
+                                        Text("-", color = if (isCell3Focused) Color(0xFF062A1F).copy(alpha = 0.7f) else Color.Gray)
                                     }
+                                }
 
-                                    Spacer(modifier = Modifier.width(16.dp))
+                                Spacer(modifier = Modifier.width(16.dp))
 
-                                    // Cell 4: Later Program
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        val laterProg = upcoming.getOrNull(1)
-                                        if (laterProg != null) {
+                                // Cell 4: Later Program (Focusable, Click opens details)
+                                val laterProg = upcoming.getOrNull(1)
+                                var isCell4Focused by remember { mutableStateOf(false) }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(72.dp)
+                                        .onFocusChanged { isCell4Focused = it.isFocused }
+                                        .clickable(enabled = laterProg != null) { laterProg?.let { onSelectProgramDetail(it, channel) } }
+                                        .background(
+                                            color = if (isCell4Focused) MaterialTheme.colorScheme.primary else Color(0xFF0F3E30).copy(alpha = 0.8f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .border(
+                                            width = if (isCell4Focused) 2.dp else 0.dp,
+                                            color = if (isCell4Focused) MaterialTheme.colorScheme.secondary else Color.Transparent,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(8.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (laterProg != null) {
+                                        Column {
                                             Text(
                                                 text = "Later: ${laterProg.title}",
                                                 style = MaterialTheme.typography.bodyMedium,
-                                                color = Color.LightGray,
-                                                maxLines = 1
+                                                color = if (isCell4Focused) Color(0xFF062A1F).copy(alpha = 0.9f) else Color.LightGray,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                             Text(
                                                 text = formatTimeRange(laterProg.start, laterProg.stop),
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = Color.Gray
+                                                color = if (isCell4Focused) Color(0xFF062A1F).copy(alpha = 0.7f) else Color.Gray
                                             )
-                                        } else {
-                                            Text("-", color = Color.Gray)
                                         }
+                                    } else {
+                                        Text("-", color = if (isCell4Focused) Color(0xFF062A1F).copy(alpha = 0.7f) else Color.Gray)
                                     }
                                 }
                             }
@@ -1369,7 +1475,8 @@ fun TvChannelGridItem(
 fun TvFullEpgGuide(
     uiState: TvUiState,
     viewModel: TvViewModel,
-    onSelectChannel: (ChannelEntity) -> Unit
+    onSelectChannel: (ChannelEntity) -> Unit,
+    onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -1483,7 +1590,7 @@ fun TvFullEpgGuide(
                                     .width(cardWidth)
                                     .fillMaxHeight()
                                     .onFocusChanged { isProgFocused = it.isFocused }
-                                    .clickable { onSelectChannel(channel) }
+                                    .clickable { onSelectProgramDetail(program, channel) }
                                     .background(
                                         color = if (isProgFocused) MaterialTheme.colorScheme.primary
                                                 else MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
@@ -1714,6 +1821,210 @@ fun TvSettingsPanel(
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvProgramDetailScreen(
+    program: ProgramEntity,
+    channel: ChannelEntity?,
+    onDismiss: () -> Unit
+) {
+    BackHandler {
+        onDismiss()
+    }
+
+    val focusRequester = remember { FocusRequester() }
+    val coroutineScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF062A1F))
+    ) {
+        // Hero Background Image
+        if (!program.iconUrl.isNullOrEmpty()) {
+            AsyncImage(
+                model = program.iconUrl,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // Gradient Overlay (Dark forest green to transparent across whole screen)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            Color(0xFF062A1F),
+                            Color(0xFF062A1F).copy(alpha = 0.95f),
+                            Color(0xFF062A1F).copy(alpha = 0.85f),
+                            Color(0xFF062A1F).copy(alpha = 0.6f),
+                            Color(0xFF062A1F).copy(alpha = 0.3f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        // Content
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(420.dp)
+                .padding(start = 48.dp, top = 48.dp, bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            // Pill back button
+            var isBackFocused by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier
+                    .focusRequester(focusRequester)
+                    .onFocusChanged { isBackFocused = it.isFocused }
+                    .onPreviewKeyEvent { keyEvent ->
+                        val isScrollable = scrollState.maxValue > 0
+                        if (keyEvent.type == KeyEventType.KeyUp) {
+                            if (isScrollable) {
+                                when (keyEvent.key) {
+                                    Key.DirectionDown -> {
+                                        coroutineScope.launch {
+                                            scrollState.animateScrollBy(120f)
+                                        }
+                                        true
+                                    }
+                                    Key.DirectionUp -> {
+                                        coroutineScope.launch {
+                                            scrollState.animateScrollBy(-120f)
+                                        }
+                                        true
+                                    }
+                                    Key.DirectionLeft, Key.DirectionRight -> true
+                                    else -> false
+                                }
+                            } else {
+                                when (keyEvent.key) {
+                                    Key.DirectionDown, Key.DirectionUp, Key.DirectionLeft, Key.DirectionRight -> true
+                                    else -> false
+                                }
+                            }
+                        } else if (keyEvent.type == KeyEventType.KeyDown) {
+                            when (keyEvent.key) {
+                                Key.DirectionDown, Key.DirectionUp, Key.DirectionLeft, Key.DirectionRight -> true
+                                else -> false
+                            }
+                        } else false
+                    }
+                    .clickable { onDismiss() }
+                    .background(
+                        color = if (isBackFocused) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = if (isBackFocused) MaterialTheme.colorScheme.secondary else Color.White.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "< Back",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isBackFocused) Color(0xFF062A1F) else Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Channel name / Logo
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (channel != null && !channel.logoUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = channel.logoUrl,
+                        contentDescription = channel.name,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.White.copy(alpha = 0.1f)),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+                Text(
+                    text = channel?.name ?: "",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            // Title
+            Text(
+                text = program.title,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White
+            )
+
+            // Subtitle (Time duration info)
+            val durationMin = (program.stop - program.start) / 60000
+            val dateStr = remember(program.start) {
+                try {
+                    val sdf = java.text.SimpleDateFormat("EEE d MMM", java.util.Locale.getDefault())
+                    sdf.format(java.util.Date(program.start))
+                } catch (e: Exception) {
+                    ""
+                }
+            }
+            Text(
+                text = "$dateStr ${formatTimeRange(program.start, program.stop)}, $durationMin min.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.LightGray
+            )
+
+            // Status tag
+            Box(
+                modifier = Modifier
+                    .background(Color.White.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "Live / Available",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Description
+            program.desc?.let { description ->
+                Box(
+                    modifier = Modifier
+                        .heightIn(max = 240.dp)
+                        .verticalScroll(scrollState)
+                ) {
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.8f)
+                    )
+                }
             }
         }
     }
