@@ -42,6 +42,11 @@ import com.iptv.shared.mvi.PlaybackIntent
 import com.iptv.shared.mvi.PlaybackSideEffect
 import com.iptv.shared.mvi.PlaybackState
 import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Size
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -99,6 +104,10 @@ fun TvAppTheme(content: @Composable () -> Unit) {
 @Composable
 fun TvMainScreen(viewModel: TvViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    if (!uiState.isOnboardingCompleted) {
+        TvOnboardingScreen(uiState = uiState, viewModel = viewModel)
+        return
+    }
     var showUrlDialog by remember { mutableStateOf(false) }
     
     val setupPlaylistFocusRequester = remember { FocusRequester() }
@@ -367,8 +376,12 @@ fun TvMainScreen(viewModel: TvViewModel) {
     }
 
     if (showUrlDialog) {
+        var isDispatcharrMode by remember { mutableStateOf(uiState.useDispatcharr) }
+        var dispatcharrInput by remember { mutableStateOf(uiState.dispatcharrUrl) }
+        var m3uInput by remember { mutableStateOf(uiState.playlistUrlInput) }
+        var epgInput by remember { mutableStateOf(uiState.epgUrlInput) }
+
         val dialogFocusRequester = remember { FocusRequester() }
-        
         LaunchedEffect(Unit) {
             dialogFocusRequester.requestFocus()
         }
@@ -398,37 +411,79 @@ fun TvMainScreen(viewModel: TvViewModel) {
                         color = Color.White
                     )
 
-                    OutlinedTextField(
-                        value = uiState.playlistUrlInput,
-                        onValueChange = { viewModel.updateUrlInput(it) },
-                        label = { Text("M3U Playlist URL") },
-                        placeholder = { Text("http://192.168.1.100/playlist.m3u") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(dialogFocusRequester),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = Color.Gray
-                        )
-                    )
-
-                    OutlinedTextField(
-                        value = uiState.epgUrlInput,
-                        onValueChange = { viewModel.updateEpgUrlInput(it) },
-                        label = { Text("EPG XMLTV URL") },
-                        placeholder = { Text("http://192.168.1.100/epg.xml.gz") },
-                        singleLine = true,
+                    // Tab selector
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = Color.Gray
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = { isDispatcharrMode = true },
+                            modifier = Modifier.weight(1f).focusRequester(dialogFocusRequester),
+                            colors = ButtonDefaults.colors(
+                                containerColor = if (isDispatcharrMode) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.2f),
+                                focusedContainerColor = if (isDispatcharrMode) MaterialTheme.colorScheme.primary else Color.Gray
+                            )
+                        ) {
+                            Text("Dispatcharr Server")
+                        }
+                        Button(
+                            onClick = { isDispatcharrMode = false },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.colors(
+                                containerColor = if (!isDispatcharrMode) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.2f),
+                                focusedContainerColor = if (!isDispatcharrMode) MaterialTheme.colorScheme.primary else Color.Gray
+                            )
+                        ) {
+                            Text("Custom URLs")
+                        }
+                    }
+
+                    if (isDispatcharrMode) {
+                        OutlinedTextField(
+                            value = dispatcharrInput,
+                            onValueChange = { dispatcharrInput = it },
+                            label = { Text("Dispatcharr Server URL") },
+                            placeholder = { Text("http://192.168.1.100:8080") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = Color.Gray
+                            )
                         )
-                    )
+                    } else {
+                        OutlinedTextField(
+                            value = m3uInput,
+                            onValueChange = { m3uInput = it },
+                            label = { Text("M3U Playlist URL") },
+                            placeholder = { Text("http://...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = Color.Gray
+                            )
+                        )
+
+                        OutlinedTextField(
+                            value = epgInput,
+                            onValueChange = { epgInput = it },
+                            label = { Text("EPG XMLTV URL") },
+                            placeholder = { Text("http://...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = Color.Gray
+                            )
+                        )
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -436,17 +491,22 @@ fun TvMainScreen(viewModel: TvViewModel) {
                     ) {
                         Button(
                             onClick = {
-                                if (uiState.playlistUrlInput.isNotEmpty()) {
-                                    viewModel.handleIntent(PlaybackIntent.LoadPlaylist(uiState.playlistUrlInput))
-                                }
-                                if (uiState.epgUrlInput.isNotEmpty()) {
-                                    viewModel.loadEpg(uiState.epgUrlInput)
+                                if (isDispatcharrMode) {
+                                    if (dispatcharrInput.isNotEmpty()) {
+                                        val m3u = "$dispatcharrInput/output/m3u"
+                                        val epg = "$dispatcharrInput/output/epg"
+                                        viewModel.saveConfigAndCompleteOnboarding(m3u, epg, dispatcharrInput, true)
+                                    }
+                                } else {
+                                    if (m3uInput.isNotEmpty()) {
+                                        viewModel.saveConfigAndCompleteOnboarding(m3uInput, epgInput, null, false)
+                                    }
                                 }
                                 showUrlDialog = false
                             },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Load")
+                            Text("Save")
                         }
 
                         Button(
@@ -924,3 +984,292 @@ private fun formatTimeRange(startMs: Long, stopMs: Long): String {
     val stopStr = timeFormatter.format(java.util.Date(stopMs))
     return "$startStr - $stopStr"
 }
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvOnboardingScreen(uiState: TvUiState, viewModel: TvViewModel) {
+    var manualMode by remember { mutableStateOf<String?>(null) } // "dispatcharr" or "custom"
+    var dispatcharrUrlInput by remember { mutableStateOf("") }
+    var playlistUrlInput by remember { mutableStateOf("") }
+    var epgUrlInput by remember { mutableStateOf("") }
+
+    val defaultFocusRequester = remember { FocusRequester() }
+    val dispatcharrFocusRequester = remember { FocusRequester() }
+    val customFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(manualMode) {
+        if (manualMode == null) {
+            defaultFocusRequester.requestFocus()
+        } else if (manualMode == "dispatcharr") {
+            dispatcharrFocusRequester.requestFocus()
+        } else if (manualMode == "custom") {
+            customFocusRequester.requestFocus()
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(24.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        // Left Pane: QR Code Setup (Default)
+        Column(
+            modifier = Modifier
+                .weight(1.2f)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f), shape = RoundedCornerShape(16.dp))
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "Easy Setup with Mobile",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Scan this QR code using the Watcharr Mobile App (Settings -> Scan TV QR) to pair and sync your playlist.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.secondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Box(
+                modifier = Modifier
+                    .size(240.dp)
+                    .background(Color.White, shape = RoundedCornerShape(12.dp))
+                    .padding(12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                QrCodeImage(
+                    content = uiState.setupQrUrl,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = uiState.setupStatus,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+
+        // Right Pane: Manual Options
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f), shape = RoundedCornerShape(16.dp))
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (manualMode == null) {
+                Text(
+                    text = "Manual Setup",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Configure your server connection or URLs directly on this device.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = { manualMode = "dispatcharr" },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(defaultFocusRequester)
+                ) {
+                    Text("Use Dispatcharr Server")
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = { manualMode = "custom" },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Enter Custom URLs")
+                }
+            } else if (manualMode == "dispatcharr") {
+                Text(
+                    text = "Dispatcharr Server",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = dispatcharrUrlInput,
+                    onValueChange = { dispatcharrUrlInput = it },
+                    label = { Text("Server URL") },
+                    placeholder = { Text("http://192.168.1.100:8080") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(dispatcharrFocusRequester),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.Gray
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            if (dispatcharrUrlInput.isNotEmpty()) {
+                                val m3u = "$dispatcharrUrlInput/output/m3u"
+                                val epg = "$dispatcharrUrlInput/output/epg"
+                                viewModel.saveConfigAndCompleteOnboarding(m3u, epg, dispatcharrUrlInput, true)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Connect")
+                    }
+                    Button(
+                        onClick = { manualMode = null },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.Gray.copy(alpha = 0.2f),
+                            focusedContainerColor = Color.Gray
+                        )
+                    ) {
+                        Text("Back")
+                    }
+                }
+            } else if (manualMode == "custom") {
+                Text(
+                    text = "Custom URLs",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = playlistUrlInput,
+                    onValueChange = { playlistUrlInput = it },
+                    label = { Text("M3U Playlist URL") },
+                    placeholder = { Text("http://...") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(customFocusRequester),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.Gray
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = epgUrlInput,
+                    onValueChange = { epgUrlInput = it },
+                    label = { Text("EPG XMLTV URL (Optional)") },
+                    placeholder = { Text("http://...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.Gray
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            if (playlistUrlInput.isNotEmpty()) {
+                                viewModel.saveConfigAndCompleteOnboarding(playlistUrlInput, epgUrlInput, null, false)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Save & Load")
+                    }
+                    Button(
+                        onClick = { manualMode = null },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.colors(
+                            containerColor = Color.Gray.copy(alpha = 0.2f),
+                            focusedContainerColor = Color.Gray
+                        )
+                    ) {
+                        Text("Back")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun QrCodeImage(content: String, modifier: Modifier = Modifier) {
+    if (content.isEmpty()) {
+        Box(modifier = modifier.background(Color.White))
+        return
+    }
+    val matrix = remember(content) {
+        try {
+            QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, 256, 256)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    if (matrix != null) {
+        Canvas(modifier = modifier) {
+            // Draw background white
+            drawRect(color = Color.White, size = size)
+
+            val width = matrix.width
+            val height = matrix.height
+            val sizeX = size.width / width
+            val sizeY = size.height / height
+
+            for (x in 0 until width) {
+                for (y in 0 until height) {
+                    if (matrix.get(x, y)) {
+                        drawRect(
+                            color = Color.Black,
+                            topLeft = androidx.compose.ui.geometry.Offset(x * sizeX, y * sizeY),
+                            size = Size(sizeX + 0.5f, sizeY + 0.5f)
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        Box(modifier = modifier.background(Color.White))
+    }
+}
+

@@ -1,6 +1,7 @@
 package com.iptv.tv.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.iptv.tv.TvApp
@@ -52,6 +53,15 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(TvUiState())
     val uiState: StateFlow<TvUiState> = _uiState.asStateFlow()
 
+    private val _isOnboardingCompleted = MutableStateFlow(false)
+    private val _setupQrUrl = MutableStateFlow("")
+    private val _setupStatus = MutableStateFlow("Initializing setup server...")
+    private val _useDispatcharr = MutableStateFlow(false)
+    private val _dispatcharrUrl = MutableStateFlow("")
+
+    private var setupServer: TvSetupServer? = null
+    private val prefs = application.getSharedPreferences("watcharr_prefs", Context.MODE_PRIVATE)
+
     private data class ChannelInfo(
         val channels: List<ChannelEntity>,
         val groups: List<String>,
@@ -71,7 +81,32 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
         val upcomingPrograms: List<ProgramEntity>
     )
 
+    private data class SetupInfo(
+        val setupQrUrl: String,
+        val setupStatus: String
+    )
+
+    private data class SettingsInfo(
+        val selectedGroup: String?,
+        val isOnboardingCompleted: Boolean,
+        val useDispatcharr: Boolean,
+        val dispatcharrUrl: String,
+        val setupQrUrl: String,
+        val setupStatus: String
+    )
+
     init {
+        val onboardingDone = prefs.getBoolean("onboarding_completed", false)
+        _isOnboardingCompleted.value = onboardingDone
+        _playlistUrlInput.value = prefs.getString("playlist_url", "") ?: ""
+        _epgUrlInput.value = prefs.getString("epg_url", "") ?: ""
+        _useDispatcharr.value = prefs.getBoolean("use_dispatcharr", false)
+        _dispatcharrUrl.value = prefs.getString("dispatcharr_url", "") ?: ""
+
+        if (!onboardingDone) {
+            startSetupServer()
+        }
+
         val now = System.currentTimeMillis()
         viewModelScope.launch {
             val channelInfoFlow = combine(
@@ -99,16 +134,47 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
                 EpgInfo(active, upcoming)
             }
 
+            val setupFlow = combine(
+                _setupQrUrl,
+                _setupStatus
+            ) { qrUrl, status ->
+                SetupInfo(qrUrl, status)
+            }
+
+            val settingsFlow = combine(
+                _selectedGroup,
+                _isOnboardingCompleted,
+                _useDispatcharr,
+                _dispatcharrUrl,
+                setupFlow
+            ) { selectedGroup, completed, useDispatcharr, dispatcharrUrl, setupInfo ->
+                SettingsInfo(
+                    selectedGroup = selectedGroup,
+                    isOnboardingCompleted = completed,
+                    useDispatcharr = useDispatcharr,
+                    dispatcharrUrl = dispatcharrUrl,
+                    setupQrUrl = setupInfo.setupQrUrl,
+                    setupStatus = setupInfo.setupStatus
+                )
+            }
+
             combine(
                 channelInfoFlow,
                 loadingInfoFlow,
                 epgInfoFlow,
-                _selectedGroup,
-                playerEngine.playbackState
-            ) { channelInfo, loadingInfo, epgInfo, selectedGroup, playbackState ->
+                playerEngine.playbackState,
+                settingsFlow
+            ) { channelInfo, loadingInfo, epgInfo, playbackState, settingsInfo ->
                 val searchQuery = channelInfo.searchQuery
                 val favoriteUrls = channelInfo.favoriteUrls
                 val channels = channelInfo.channels
+
+                val selectedGroup = settingsInfo.selectedGroup
+                val isOnboardingCompleted = settingsInfo.isOnboardingCompleted
+                val useDispatcharr = settingsInfo.useDispatcharr
+                val dispatcharrUrl = settingsInfo.dispatcharrUrl
+                val setupQrUrl = settingsInfo.setupQrUrl
+                val setupStatus = settingsInfo.setupStatus
 
                 val filteredChannels = channels.filter { channel ->
                     val matchesGroup = when (selectedGroup) {
@@ -152,11 +218,72 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
                     epgUrlInput = loadingInfo.epgUrlInput,
                     searchQuery = searchQuery,
                     favoriteUrls = favoriteUrls,
-                    epgData = epgData
+                    epgData = epgData,
+                    isOnboardingCompleted = isOnboardingCompleted,
+                    setupQrUrl = setupQrUrl,
+                    setupStatus = setupStatus,
+                    useDispatcharr = useDispatcharr,
+                    dispatcharrUrl = dispatcharrUrl
                 )
             }.collect { state ->
                 _uiState.value = state
             }
+        }
+    }
+
+    fun startSetupServer() {
+        if (setupServer != null) return
+        viewModelScope.launch {
+            try {
+                val ip = com.iptv.shared.utils.NetworkUtils.getLocalIpAddress()
+                if (ip == null) {
+                    _setupStatus.value = "Connect to WiFi or local network to enable QR setup."
+                    return@launch
+                }
+                
+                setupServer = TvSetupServer { m3u, epg ->
+                    saveConfigAndCompleteOnboarding(m3u, epg, null, false)
+                }
+                val port = setupServer!!.start(viewModelScope)
+                val setupUrl = "http://$ip:$port/setup"
+                _setupQrUrl.value = setupUrl
+                _setupStatus.value = "Scan the QR code to pair device.\n(Server active at http://$ip:$port)"
+            } catch (e: Exception) {
+                _setupStatus.value = "Failed to start local setup server: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun stopSetupServer() {
+        setupServer?.stop()
+        setupServer = null
+    }
+
+    fun saveConfigAndCompleteOnboarding(playlistUrl: String, epgUrl: String, dispatcharrUrl: String?, useDispatcharr: Boolean) {
+        viewModelScope.launch {
+            prefs.edit().apply {
+                putString("playlist_url", playlistUrl)
+                putString("epg_url", epgUrl)
+                putString("dispatcharr_url", dispatcharrUrl)
+                putBoolean("use_dispatcharr", useDispatcharr)
+                putBoolean("onboarding_completed", true)
+                apply()
+            }
+
+            _playlistUrlInput.value = playlistUrl
+            _epgUrlInput.value = epgUrl
+            _useDispatcharr.value = useDispatcharr
+            _dispatcharrUrl.value = dispatcharrUrl ?: ""
+            _isOnboardingCompleted.value = true
+
+            if (playlistUrl.isNotEmpty()) {
+                handleIntent(PlaybackIntent.LoadPlaylist(playlistUrl))
+            }
+            if (epgUrl.isNotEmpty()) {
+                loadEpg(epgUrl)
+            }
+
+            stopSetupServer()
         }
     }
 
@@ -279,6 +406,7 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
+        stopSetupServer()
         playerEngine.release()
     }
 }
@@ -294,5 +422,10 @@ data class TvUiState(
     val epgUrlInput: String = "",
     val searchQuery: String = "",
     val favoriteUrls: Set<String> = emptySet(),
-    val epgData: Map<String, List<ProgramEntity>> = emptyMap()
+    val epgData: Map<String, List<ProgramEntity>> = emptyMap(),
+    val isOnboardingCompleted: Boolean = false,
+    val setupQrUrl: String = "",
+    val setupStatus: String = "",
+    val useDispatcharr: Boolean = false,
+    val dispatcharrUrl: String = ""
 )

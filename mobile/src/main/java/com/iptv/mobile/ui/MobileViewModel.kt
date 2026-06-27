@@ -1,6 +1,7 @@
 package com.iptv.mobile.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.iptv.mobile.MobileApp
@@ -52,6 +53,12 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
     private val _uiState = MutableStateFlow(MobileUiState())
     val uiState: StateFlow<MobileUiState> = _uiState.asStateFlow()
 
+    private val _isOnboardingCompleted = MutableStateFlow(false)
+    private val _useDispatcharr = MutableStateFlow(false)
+    private val _dispatcharrUrl = MutableStateFlow("")
+
+    private val prefs = application.getSharedPreferences("watcharr_prefs", Context.MODE_PRIVATE)
+
     private data class ChannelInfo(
         val channels: List<ChannelEntity>,
         val groups: List<String>,
@@ -71,7 +78,21 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
         val upcomingPrograms: List<ProgramEntity>
     )
 
+    private data class SettingsInfo(
+        val selectedGroup: String?,
+        val isOnboardingCompleted: Boolean,
+        val useDispatcharr: Boolean,
+        val dispatcharrUrl: String
+    )
+
     init {
+        val onboardingDone = prefs.getBoolean("onboarding_completed", false)
+        _isOnboardingCompleted.value = onboardingDone
+        _playlistUrlInput.value = prefs.getString("playlist_url", "") ?: ""
+        _epgUrlInput.value = prefs.getString("epg_url", "") ?: ""
+        _useDispatcharr.value = prefs.getBoolean("use_dispatcharr", false)
+        _dispatcharrUrl.value = prefs.getString("dispatcharr_url", "") ?: ""
+
         val now = System.currentTimeMillis()
         viewModelScope.launch {
             val channelInfoFlow = combine(
@@ -99,16 +120,30 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
                 EpgInfo(active, upcoming)
             }
 
+            val settingsFlow = combine(
+                _selectedGroup,
+                _isOnboardingCompleted,
+                _useDispatcharr,
+                _dispatcharrUrl
+            ) { selectedGroup, completed, useDispatcharr, dispatcharrUrl ->
+                SettingsInfo(selectedGroup, completed, useDispatcharr, dispatcharrUrl)
+            }
+
             combine(
                 channelInfoFlow,
                 loadingInfoFlow,
                 epgInfoFlow,
-                _selectedGroup,
-                playerEngine.playbackState
-            ) { channelInfo, loadingInfo, epgInfo, selectedGroup, playbackState ->
+                playerEngine.playbackState,
+                settingsFlow
+            ) { channelInfo, loadingInfo, epgInfo, playbackState, settingsInfo ->
                 val searchQuery = channelInfo.searchQuery
                 val favoriteUrls = channelInfo.favoriteUrls
                 val channels = channelInfo.channels
+
+                val selectedGroup = settingsInfo.selectedGroup
+                val isOnboardingCompleted = settingsInfo.isOnboardingCompleted
+                val useDispatcharr = settingsInfo.useDispatcharr
+                val dispatcharrUrl = settingsInfo.dispatcharrUrl
 
                 val filteredChannels = channels.filter { channel ->
                     val matchesGroup = when (selectedGroup) {
@@ -152,10 +187,86 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
                     epgUrlInput = loadingInfo.epgUrlInput,
                     searchQuery = searchQuery,
                     favoriteUrls = favoriteUrls,
-                    epgData = epgData
+                    epgData = epgData,
+                    isOnboardingCompleted = isOnboardingCompleted,
+                    useDispatcharr = useDispatcharr,
+                    dispatcharrUrl = dispatcharrUrl
                 )
             }.collect { state ->
                 _uiState.value = state
+            }
+        }
+    }
+
+    fun completeOnboarding(playlistUrl: String, epgUrl: String, dispatcharrUrl: String?, useDispatcharr: Boolean) {
+        viewModelScope.launch {
+            prefs.edit().apply {
+                putString("playlist_url", playlistUrl)
+                putString("epg_url", epgUrl)
+                putString("dispatcharr_url", dispatcharrUrl)
+                putBoolean("use_dispatcharr", useDispatcharr)
+                putBoolean("onboarding_completed", true)
+                apply()
+            }
+
+            _playlistUrlInput.value = playlistUrl
+            _epgUrlInput.value = epgUrl
+            _useDispatcharr.value = useDispatcharr
+            _dispatcharrUrl.value = dispatcharrUrl ?: ""
+            _isOnboardingCompleted.value = true
+
+            if (playlistUrl.isNotEmpty()) {
+                handleIntent(PlaybackIntent.LoadPlaylist(playlistUrl))
+            }
+            if (epgUrl.isNotEmpty()) {
+                loadEpg(epgUrl)
+            }
+        }
+    }
+
+    fun sendConfigToTv(tvSetupUrl: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val m3u = prefs.getString("playlist_url", "") ?: ""
+                val epg = prefs.getString("epg_url", "") ?: ""
+
+                if (m3u.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        onError("Mobile app is not configured yet!")
+                    }
+                    return@launch
+                }
+
+                val json = org.json.JSONObject()
+                json.put("playlistUrl", m3u)
+                json.put("epgUrl", epg)
+                val jsonBytes = json.toString().toByteArray()
+
+                val url = URL(tvSetupUrl)
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.outputStream.use { os ->
+                    os.write(jsonBytes)
+                }
+
+                val code = conn.responseCode
+                if (code == 200) {
+                    withContext(Dispatchers.Main) {
+                        onSuccess()
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        onError("TV server returned error code: $code")
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onError("Failed to connect to TV: ${e.localizedMessage}")
+                }
             }
         }
     }
@@ -272,5 +383,8 @@ data class MobileUiState(
     val epgUrlInput: String = "",
     val searchQuery: String = "",
     val favoriteUrls: Set<String> = emptySet(),
-    val epgData: Map<String, List<ProgramEntity>> = emptyMap()
+    val epgData: Map<String, List<ProgramEntity>> = emptyMap(),
+    val isOnboardingCompleted: Boolean = false,
+    val useDispatcharr: Boolean = false,
+    val dispatcharrUrl: String = ""
 )

@@ -39,6 +39,9 @@ import com.iptv.shared.mvi.PlaybackSideEffect
 import com.iptv.shared.mvi.PlaybackState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+
+
 
 class MainActivity : ComponentActivity() {
 
@@ -110,6 +113,10 @@ fun IPTVAppTheme(content: @Composable () -> Unit) {
 @Composable
 fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    if (!uiState.isOnboardingCompleted) {
+        MobileOnboardingWizard(viewModel = viewModel)
+        return
+    }
     var showUrlDialog by remember { mutableStateOf(false) }
 
     var isPlayerFullscreen by remember { mutableStateOf(false) }
@@ -551,42 +558,128 @@ fun ChannelsList(uiState: MobileUiState, viewModel: MobileViewModel, modifier: M
 
 @Composable
 fun ConfigureUrlsDialog(uiState: MobileUiState, viewModel: MobileViewModel, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var isDispatcharrMode by remember { mutableStateOf(uiState.useDispatcharr) }
+    var dispatcharrInput by remember { mutableStateOf(uiState.dispatcharrUrl) }
+    var m3uInput by remember { mutableStateOf(uiState.playlistUrlInput) }
+    var epgInput by remember { mutableStateOf(uiState.epgUrlInput) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Configure Playlist & EPG") },
+        title = { Text("Configure Setup") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = uiState.playlistUrlInput,
-                    onValueChange = { viewModel.updateUrlInput(it) },
-                    label = { Text("M3U Playlist URL") },
-                    placeholder = { Text("http://192.168.1.100/playlist.m3u") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = uiState.epgUrlInput,
-                    onValueChange = { viewModel.updateEpgUrlInput(it) },
-                    label = { Text("EPG XMLTV URL") },
-                    placeholder = { Text("http://192.168.1.100/epg.xml.gz") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Tab choice
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { isDispatcharrMode = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isDispatcharrMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Text("Dispatcharr")
+                    }
+                    Button(
+                        onClick = { isDispatcharrMode = false },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (!isDispatcharrMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Text("Custom")
+                    }
+                }
+
+                if (isDispatcharrMode) {
+                    OutlinedTextField(
+                        value = dispatcharrInput,
+                        onValueChange = { dispatcharrInput = it },
+                        label = { Text("Dispatcharr Server URL") },
+                        placeholder = { Text("http://192.168.1.100:8080") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = m3uInput,
+                        onValueChange = { m3uInput = it },
+                        label = { Text("M3U Playlist URL") },
+                        placeholder = { Text("http://...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = epgInput,
+                        onValueChange = { epgInput = it },
+                        label = { Text("EPG XMLTV URL") },
+                        placeholder = { Text("http://...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                // Scan TV QR Button
+                Button(
+                    onClick = {
+                        try {
+                            val scanner = GmsBarcodeScanning.getClient(context)
+                            scanner.startScan()
+                                .addOnSuccessListener { barcode ->
+                                    val tvUrl = barcode.rawValue
+                                    if (tvUrl != null && tvUrl.startsWith("http")) {
+                                        viewModel.sendConfigToTv(
+                                            tvSetupUrl = tvUrl,
+                                            onSuccess = {
+                                                Toast.makeText(context, "TV Client paired successfully!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            onError = { err ->
+                                                Toast.makeText(context, "Pairing failed: $err", Toast.LENGTH_LONG).show()
+                                            }
+                                        )
+                                    } else {
+                                        Toast.makeText(context, "Invalid QR code format", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                .addOnFailureListener { e ->
+                                    Toast.makeText(context, "Scan failed: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                                }
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Scanner unavailable: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Text("📷 Scan TV Setup QR Code", color = MaterialTheme.colorScheme.onSecondary)
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    if (uiState.playlistUrlInput.isNotEmpty()) {
-                        viewModel.handleIntent(PlaybackIntent.LoadPlaylist(uiState.playlistUrlInput))
-                    }
-                    if (uiState.epgUrlInput.isNotEmpty()) {
-                        viewModel.loadEpg(uiState.epgUrlInput)
+                    if (isDispatcharrMode) {
+                        if (dispatcharrInput.isNotEmpty()) {
+                            val m3u = "$dispatcharrInput/output/m3u"
+                            val epg = "$dispatcharrInput/output/epg"
+                            viewModel.completeOnboarding(m3u, epg, dispatcharrInput, true)
+                        }
+                    } else {
+                        if (m3uInput.isNotEmpty()) {
+                            viewModel.completeOnboarding(m3uInput, epgInput, null, false)
+                        }
                     }
                     onDismiss()
                 }
             ) {
-                Text("Load")
+                Text("Save")
             }
         },
         dismissButton = {
@@ -882,3 +975,206 @@ fun EpgProgramTimelineItem(program: ProgramEntity, onClick: () -> Unit) {
         }
     }
 }
+
+@Composable
+fun MobileOnboardingWizard(viewModel: MobileViewModel) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var currentStep by remember { mutableIntStateOf(0) }
+    var isDispatcharrMode by remember { mutableStateOf(true) }
+    var dispatcharrInput by remember { mutableStateOf("") }
+    var m3uInput by remember { mutableStateOf("") }
+    var epgInput by remember { mutableStateOf("") }
+
+    if (uiState.isLoadingPlaylist || uiState.isLoadingEpg) {
+        // Step 3: Loading Screen
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(64.dp)
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "Configuring Client...",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = if (uiState.isLoadingPlaylist) "Downloading and parsing M3U playlist..." else "Syncing EPG data...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+        }
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        when (currentStep) {
+            0 -> {
+                // Welcome Screen
+                Text(
+                    text = "Watcharr IPTV",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Privacy-first, zero cloud tracking IPTV client.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(48.dp))
+                Button(
+                    onClick = { currentStep = 1 },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                ) {
+                    Text("Get Started")
+                }
+            }
+
+            1 -> {
+                // Choice Selection
+                Text(
+                    text = "Server Configuration",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isDispatcharrMode = true },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isDispatcharrMode) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    border = if (isDispatcharrMode) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Dispatcharr Server (Recommended)", fontWeight = FontWeight.Bold, color = Color.White)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Automatically configures your playlist and guide using a Dispatcharr server URL.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isDispatcharrMode = false },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (!isDispatcharrMode) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    border = if (!isDispatcharrMode) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Custom Setup", fontWeight = FontWeight.Bold, color = Color.White)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Manually enter custom URLs for your M3U playlist and EPG XMLTV source.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Button(onClick = { currentStep = 0 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
+                        Text("Back")
+                    }
+                    Button(onClick = { currentStep = 2 }, modifier = Modifier.weight(1f)) {
+                        Text("Next")
+                    }
+                }
+            }
+
+            2 -> {
+                // Form input
+                Text(
+                    text = if (isDispatcharrMode) "Dispatcharr URL" else "Custom URLs",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                if (isDispatcharrMode) {
+                    OutlinedTextField(
+                        value = dispatcharrInput,
+                        onValueChange = { dispatcharrInput = it },
+                        label = { Text("Server URL") },
+                        placeholder = { Text("http://192.168.1.100:8080") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = m3uInput,
+                        onValueChange = { m3uInput = it },
+                        label = { Text("M3U Playlist URL") },
+                        placeholder = { Text("http://...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = epgInput,
+                        onValueChange = { epgInput = it },
+                        label = { Text("EPG XMLTV URL (Optional)") },
+                        placeholder = { Text("http://...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Button(onClick = { currentStep = 1 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
+                        Text("Back")
+                    }
+                    Button(
+                        onClick = {
+                            if (isDispatcharrMode) {
+                                if (dispatcharrInput.isNotEmpty()) {
+                                    val m3u = "$dispatcharrInput/output/m3u"
+                                    val epg = "$dispatcharrInput/output/epg"
+                                    viewModel.completeOnboarding(m3u, epg, dispatcharrInput, true)
+                                }
+                            } else {
+                                if (m3uInput.isNotEmpty()) {
+                                    viewModel.completeOnboarding(m3uInput, epgInput, null, false)
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = if (isDispatcharrMode) dispatcharrInput.isNotEmpty() else m3uInput.isNotEmpty()
+                    ) {
+                        Text("Load")
+                    }
+                }
+            }
+        }
+    }
+}
+
