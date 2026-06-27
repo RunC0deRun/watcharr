@@ -409,9 +409,9 @@ fun TvVideoPlayer(viewModel: TvViewModel, state: PlaybackState) {
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
             factory = { ctx ->
-                PlayerView(ctx).apply {
+                val view = android.view.LayoutInflater.from(ctx).inflate(R.layout.player_view, null) as PlayerView
+                view.apply {
                     this.player = player
-                    useController = false
                     isFocusable = false
                     isFocusableInTouchMode = false
                     descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
