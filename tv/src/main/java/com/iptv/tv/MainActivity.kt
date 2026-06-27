@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
@@ -1519,7 +1520,8 @@ private fun formatProgramDayTime(timeMs: Long): String {
 @Composable
 fun TvHeroCarousel(
     carouselItems: List<CarouselItem>,
-    onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
+    onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var activeIndex by remember { mutableStateOf(0) }
 
@@ -1538,7 +1540,7 @@ fun TvHeroCarousel(
     var isFocused by remember { mutableStateOf(false) }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(280.dp)
             .onFocusChanged { isFocused = it.isFocused }
@@ -1677,7 +1679,8 @@ fun TvHeroCarousel(
 fun TvNowLiveRow(
     liveItems: List<CarouselItem>,
     onSelectChannel: (ChannelEntity) -> Unit,
-    onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
+    onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit,
+    firstItemFocusRequester: FocusRequester? = null
 ) {
     LazyRow(
         modifier = Modifier
@@ -1686,7 +1689,7 @@ fun TvNowLiveRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.Top
     ) {
-        items(liveItems) { item ->
+        itemsIndexed(liveItems) { index, item ->
             var isFocused by remember { mutableStateOf(false) }
             val now = System.currentTimeMillis()
             val total = item.program.stop - item.program.start
@@ -1702,6 +1705,13 @@ fun TvNowLiveRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(100.dp)
+                        .then(
+                            if (index == 0 && firstItemFocusRequester != null) {
+                                Modifier.focusRequester(firstItemFocusRequester)
+                            } else {
+                                Modifier
+                            }
+                        )
                         .onFocusChanged { isFocused = it.isFocused }
                         .combinedClickable(
                             onClick = { onSelectChannel(item.channel) },
@@ -1810,6 +1820,7 @@ fun TvChannelsGrid(
     onSelectChannel: (ChannelEntity) -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {
+    val liveFirstFocusRequester = remember { FocusRequester() }
     val carouselItems = remember(uiState.epgData, uiState.channels) {
         val now = System.currentTimeMillis()
         val twoHours = 2 * 60 * 60 * 1000
@@ -1892,7 +1903,8 @@ fun TvChannelsGrid(
                         item {
                             TvHeroCarousel(
                                 carouselItems = carouselItems,
-                                onSelectProgramDetail = onSelectProgramDetail
+                                onSelectProgramDetail = onSelectProgramDetail,
+                                modifier = Modifier.focusProperties { down = liveFirstFocusRequester }
                             )
                         }
                     }
@@ -1921,7 +1933,8 @@ fun TvChannelsGrid(
                                 TvNowLiveRow(
                                     liveItems = liveItems,
                                     onSelectChannel = onSelectChannel,
-                                    onSelectProgramDetail = onSelectProgramDetail
+                                    onSelectProgramDetail = onSelectProgramDetail,
+                                    firstItemFocusRequester = liveFirstFocusRequester
                                 )
                             }
                         }
