@@ -557,8 +557,23 @@ fun TvEpgGuideOverlay(
     onSelectChannel: (ChannelEntity) -> Unit,
     onClose: () -> Unit
 ) {
+    val activeChannel = (uiState.playbackState as? PlaybackState.Playing)?.channel
+    val activeChannelIndex = remember(uiState.channels, activeChannel) {
+        if (activeChannel != null) {
+            val idx = uiState.channels.indexOfFirst { it.url == activeChannel.url }
+            if (idx != -1) idx else 0
+        } else {
+            0
+        }
+    }
+
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    LaunchedEffect(activeChannelIndex) {
+        if (activeChannelIndex != -1) {
+            listState.scrollToItem(activeChannelIndex)
+        }
         focusRequester.requestFocus()
     }
 
@@ -605,6 +620,7 @@ fun TvEpgGuideOverlay(
                     }
                 } else {
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -619,11 +635,12 @@ fun TvEpgGuideOverlay(
                                 onClick = { onSelectChannel(channel) },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .then(if (index == 0) Modifier.focusRequester(focusRequester) else Modifier),
+                                    .then(if (index == activeChannelIndex) Modifier.focusRequester(focusRequester) else Modifier),
                                 colors = CardDefaults.colors(
                                     containerColor = Color(0xFF1E1E38).copy(alpha = 0.8f),
                                     focusedContainerColor = MaterialTheme.colorScheme.primary
-                                )
+                                ),
+                                scale = CardDefaults.scale(focusedScale = 1f)
                             ) {
                                 Row(
                                     modifier = Modifier.padding(12.dp).fillMaxWidth(),
