@@ -440,6 +440,14 @@ fun TvSidebarSwapper(
                 .fillMaxHeight()
                 .background(Color(0xFF0F0F1E).copy(alpha = 0.95f))
                 .padding(16.dp)
+                .onKeyEvent { keyEvent ->
+                    if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionRight) {
+                        onClose()
+                        true
+                    } else {
+                        false
+                    }
+                }
                 .clickable(enabled = false) {}
         ) {
             Text(
