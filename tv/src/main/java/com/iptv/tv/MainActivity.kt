@@ -49,6 +49,11 @@ import com.iptv.shared.mvi.PlaybackIntent
 import com.iptv.shared.mvi.PlaybackSideEffect
 import com.iptv.shared.mvi.PlaybackState
 import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Size
 import com.google.zxing.BarcodeFormat
@@ -586,7 +591,17 @@ fun TvSidebarSwapper(
                         selected = uiState.selectedGroup == "Favorites",
                         onClick = { viewModel.selectGroup("Favorites") }
                     ) {
-                        Text("★ Favorites")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text("Favorites")
+                        }
                     }
                 }
                 items(uiState.groups, key = { it }) { group ->
@@ -623,13 +638,26 @@ fun TvSidebarSwapper(
                         )
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = if (isFav) "★ ${channel.name}" else channel.name,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isChCardFocused) MaterialTheme.colorScheme.background else Color.White,
-                                maxLines = 1
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                if (isFav) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = "Favorite",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                                Text(
+                                    text = channel.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isChCardFocused) MaterialTheme.colorScheme.background else Color.White,
+                                    maxLines = 1
+                                )
+                            }
                             if (current != null) {
                                 Text(
                                     text = current.title,
@@ -768,14 +796,27 @@ fun TvEpgGuideOverlay(
                                     contentAlignment = Alignment.CenterStart
                                 ) {
                                     Column {
-                                        Text(
-                                            text = if (isFav) "★ ${channel.name}" else channel.name,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (isChFocused) MaterialTheme.colorScheme.background else Color.White,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            if (isFav) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Star,
+                                                    contentDescription = "Favorite",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                            Text(
+                                                text = channel.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isChFocused) MaterialTheme.colorScheme.background else Color.White,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                         channel.groupTitle?.let {
                                             Text(
                                                 text = it,
@@ -1814,7 +1855,17 @@ fun TvChannelsGrid(
                                 selected = uiState.selectedGroup == "Favorites",
                                 onClick = { viewModel.selectGroup("Favorites") }
                             ) {
-                                Text("★ Favorites")
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text("Favorites")
+                                }
                             }
                         }
                         items(uiState.groups, key = { it }) { group ->

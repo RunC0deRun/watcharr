@@ -42,6 +42,14 @@ import com.iptv.shared.mvi.PlaybackState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 
 
 
@@ -312,7 +320,11 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                         )
                         if (uiState.playbackState !is PlaybackState.Idle) {
                             IconButton(onClick = { showChannelsList = false }, modifier = Modifier.size(28.dp)) {
-                                Text("◀", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "Hide channels list",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
                     }
@@ -379,7 +391,17 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                 modifier = Modifier.padding(end = 12.dp)
                             ) {
-                                Text("▶ Show Channels")
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.List,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text("Show Channels")
+                                }
                             }
                         }
                     }
@@ -628,7 +650,19 @@ fun CategoryGroupsRow(uiState: MobileUiState, viewModel: MobileViewModel) {
             FilterChip(
                 selected = uiState.selectedGroup == "Favorites",
                 onClick = { viewModel.selectGroup("Favorites") },
-                label = { Text("★ Favorites") }
+                label = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text("Favorites")
+                    }
+                }
             )
         }
         items(uiState.groups, key = { it }) { group ->
@@ -790,7 +824,18 @@ fun ConfigureUrlsDialog(uiState: MobileUiState, viewModel: MobileViewModel, onDi
                         containerColor = MaterialTheme.colorScheme.secondary
                     )
                 ) {
-                    Text("📷 Scan TV Setup QR Code", color = MaterialTheme.colorScheme.onSecondary)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text("Scan TV Setup QR Code", color = MaterialTheme.colorScheme.onSecondary)
+                    }
                 }
             }
         },
@@ -970,10 +1015,11 @@ fun ChannelListItem(
                         onClick = onToggleFavorite,
                         modifier = Modifier.size(28.dp)
                     ) {
-                        Text(
-                            text = if (isFavorite) "★" else "☆",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                            tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
@@ -1005,10 +1051,11 @@ fun ChannelListItem(
                 }
             }
             
-            Text(
-                text = "▶",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = "Play channel",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
             )
         }
     }

@@ -173,14 +173,6 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
         // Implemented by subclasses
     }
 
-    fun updateUrlInput(url: String) {
-        _playlistUrlInput.value = url
-    }
-
-    fun updateEpgUrlInput(url: String) {
-        _epgUrlInput.value = url
-    }
-
     fun selectGroup(group: String?) {
         _selectedGroup.value = group
     }
@@ -227,8 +219,8 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
                         channelDao.deleteAll()
                         val batch = mutableListOf<ChannelEntity>()
                         val batchSize = 1000
-                        M3uParser.parse(fileInputStream).collect { track ->
-                            batch.add(track.toEntity())
+                        M3uParser.parse(fileInputStream).collect { channel ->
+                            batch.add(channel)
                             if (batch.size >= batchSize) {
                                 channelDao.insertAll(batch)
                                 batch.clear()

@@ -10,7 +10,7 @@ object NetworkUtils {
                 val addrs = intf.inetAddresses
                 for (addr in addrs) {
                     if (!addr.isLoopbackAddress) {
-                        val sAddr = addr.hostAddress
+                        val sAddr = addr.hostAddress ?: continue
                         val isIPv4 = sAddr.indexOf(':') < 0
                         if (isIPv4) {
                             return sAddr
