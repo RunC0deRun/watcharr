@@ -11,4 +11,10 @@ object PlayerEngineProvider {
             instance ?: PlayerEngine(context.applicationContext).also { instance = it }
         }
     }
+
+    fun clear() {
+        synchronized(this) {
+            instance = null
+        }
+    }
 }
