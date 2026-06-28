@@ -25,10 +25,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MobileViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as MobileApp
@@ -93,7 +96,6 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
         _useDispatcharr.value = prefs.getBoolean("use_dispatcharr", false)
         _dispatcharrUrl.value = prefs.getString("dispatcharr_url", "") ?: ""
 
-        val now = System.currentTimeMillis()
         viewModelScope.launch {
             val channelInfoFlow = combine(
                 channelDao.getAllChannelsFlow(),
@@ -113,11 +115,20 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
                 LoadingInfo(isLoadPlaylist, playlistUrl, isLoadEpg, epgUrl)
             }
 
-            val epgInfoFlow = combine(
-                programDao.getActiveProgramsFlow(now),
-                programDao.getAllUpcomingProgramsFlow(now)
-            ) { active, upcoming ->
-                EpgInfo(active, upcoming)
+            val nowFlow = kotlinx.coroutines.flow.flow {
+                while (true) {
+                    emit(System.currentTimeMillis())
+                    kotlinx.coroutines.delay(30000)
+                }
+            }
+
+            val epgInfoFlow = nowFlow.flatMapLatest { now ->
+                combine(
+                    programDao.getActiveProgramsFlow(now),
+                    programDao.getAllUpcomingProgramsFlow(now)
+                ) { active, upcoming ->
+                    EpgInfo(active, upcoming)
+                }
             }
 
             val settingsFlow = combine(

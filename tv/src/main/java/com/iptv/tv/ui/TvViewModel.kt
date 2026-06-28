@@ -25,10 +25,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URL
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class TvViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as TvApp
@@ -107,7 +110,6 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
             startSetupServer()
         }
 
-        val now = System.currentTimeMillis()
         viewModelScope.launch {
             val channelInfoFlow = combine(
                 channelDao.getAllChannelsFlow(),
@@ -127,11 +129,20 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
                 LoadingInfo(isLoadPlaylist, playlistUrl, isLoadEpg, epgUrl)
             }
 
-            val epgInfoFlow = combine(
-                programDao.getActiveProgramsFlow(now),
-                programDao.getAllUpcomingProgramsFlow(now)
-            ) { active, upcoming ->
-                EpgInfo(active, upcoming)
+            val nowFlow = kotlinx.coroutines.flow.flow {
+                while (true) {
+                    emit(System.currentTimeMillis())
+                    kotlinx.coroutines.delay(30000)
+                }
+            }
+
+            val epgInfoFlow = nowFlow.flatMapLatest { now ->
+                combine(
+                    programDao.getActiveProgramsFlow(now),
+                    programDao.getAllUpcomingProgramsFlow(now)
+                ) { active, upcoming ->
+                    EpgInfo(active, upcoming)
+                }
             }
 
             val setupFlow = combine(
@@ -357,21 +368,22 @@ class TvViewModel(application: Application) : AndroidViewModel(application) {
             _isLoadingPlaylist.value = true
             try {
                 withContext(Dispatchers.IO) {
-                    val inputStream = URL(m3uUrl).openStream()
-                    channelDao.deleteAll()
-                    
-                    val batch = mutableListOf<ChannelEntity>()
-                    val batchSize = 1000
-                    
-                    M3uParser.parse(inputStream).collect { track ->
-                        batch.add(track.toEntity())
-                        if (batch.size >= batchSize) {
-                            channelDao.insertAll(batch)
-                            batch.clear()
+                    URL(m3uUrl).openStream().use { inputStream ->
+                        channelDao.deleteAll()
+                        
+                        val batch = mutableListOf<ChannelEntity>()
+                        val batchSize = 1000
+                        
+                        M3uParser.parse(inputStream).collect { track ->
+                            batch.add(track.toEntity())
+                            if (batch.size >= batchSize) {
+                                channelDao.insertAll(batch)
+                                batch.clear()
+                            }
                         }
-                    }
-                    if (batch.isNotEmpty()) {
-                        channelDao.insertAll(batch)
+                        if (batch.isNotEmpty()) {
+                            channelDao.insertAll(batch)
+                        }
                     }
                 }
                 _sideEffects.emit(PlaybackSideEffect.ShowToast("Playlist loaded successfully"))
