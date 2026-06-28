@@ -82,9 +82,7 @@ class MainActivity : ComponentActivity() {
         super.onUserLeaveHint()
         val uiState = viewModel.uiState.value
         if (uiState.playbackState is PlaybackState.Playing) {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                enterPictureInPictureMode(PictureInPictureParams.Builder().build())
-            }
+            enterPictureInPictureMode(PictureInPictureParams.Builder().build())
         }
     }
 
