@@ -15,10 +15,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.animateScrollBy
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.tv.foundation.lazy.list.TvLazyColumn
+import androidx.tv.foundation.lazy.list.TvLazyRow
+import androidx.tv.foundation.lazy.list.items
+import androidx.tv.foundation.lazy.list.itemsIndexed
+import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -650,7 +651,7 @@ fun TvSidebarSwapper(
             )
 
             // Category rows
-            LazyRow(
+            TvLazyRow(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -681,7 +682,7 @@ fun TvSidebarSwapper(
             }
 
             // Channel items
-            LazyColumn(
+            TvLazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -748,7 +749,7 @@ fun TvEpgGuideOverlay(
     }
 
     val focusRequester = remember { FocusRequester() }
-    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val listState = rememberTvLazyListState()
 
     LaunchedEffect(activeChannelIndex, uiState.channels) {
         if (uiState.channels.isNotEmpty() && activeChannelIndex in uiState.channels.indices) {
@@ -799,7 +800,7 @@ fun TvEpgGuideOverlay(
                         Text("No channels loaded.", color = Color.Gray)
                     }
                 } else {
-                    LazyColumn(
+                    TvLazyColumn(
                         state = listState,
                         modifier = Modifier
                             .weight(1f)
@@ -1686,7 +1687,7 @@ fun TvNowLiveRow(
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit,
     firstItemFocusRequester: FocusRequester? = null
 ) {
-    LazyRow(
+    TvLazyRow(
         modifier = Modifier
             .fillMaxWidth()
             .height(150.dp),
@@ -1897,7 +1898,7 @@ fun TvChannelsGrid(
                 )
             }
         } else {
-            LazyColumn(
+            TvLazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -1958,7 +1959,7 @@ fun TvChannelsGrid(
 
                 // Categories Row (Only show categories/filters here)
                 item {
-                    LazyRow(
+                    TvLazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -2101,7 +2102,7 @@ fun TvFullEpgGuide(
     onSelectChannel: (ChannelEntity) -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {
-    LazyColumn(
+    TvLazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(24.dp),
@@ -2195,7 +2196,7 @@ fun TvFullEpgGuide(
                         Text("No program data available", color = Color.Gray)
                     }
                 } else {
-                    LazyRow(
+                    TvLazyRow(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(),
