@@ -190,13 +190,26 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
     protected fun loadPlaylist(m3uUrl: String) {
         viewModelScope.launch {
             _isLoadingPlaylist.value = true
+            val context = getApplication<Application>()
+            val tempFile = java.io.File.createTempFile("playlist", ".m3u", context.cacheDir)
             try {
                 withContext(Dispatchers.IO) {
-                    URL(m3uUrl).openStream().use { inputStream ->
+                    val url = URL(m3uUrl)
+                    val conn = url.openConnection()
+                    conn.connectTimeout = 30000
+                    conn.readTimeout = 30000
+                    conn.getInputStream().use { input ->
+                        tempFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    (conn as? java.net.HttpURLConnection)?.disconnect()
+
+                    java.io.FileInputStream(tempFile).use { fileInputStream ->
                         channelDao.deleteAll()
                         val batch = mutableListOf<ChannelEntity>()
                         val batchSize = 1000
-                        M3uParser.parse(inputStream).collect { track ->
+                        M3uParser.parse(fileInputStream).collect { track ->
                             batch.add(track.toEntity())
                             if (batch.size >= batchSize) {
                                 channelDao.insertAll(batch)
@@ -213,6 +226,9 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
                 e.printStackTrace()
                 _sideEffects.emit(PlaybackSideEffect.ShowToast("Failed to load playlist: ${e.localizedMessage}"))
             } finally {
+                if (tempFile.exists()) {
+                    tempFile.delete()
+                }
                 _isLoadingPlaylist.value = false
             }
         }
