@@ -581,7 +581,7 @@ fun TvSidebarSwapper(
                         Text("★ Favorites")
                     }
                 }
-                items(uiState.groups) { group ->
+                items(uiState.groups, key = { it }) { group ->
                     FilterChip(
                         selected = uiState.selectedGroup == group,
                         onClick = { viewModel.selectGroup(group) }
@@ -596,7 +596,7 @@ fun TvSidebarSwapper(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                itemsIndexed(uiState.channels) { index, channel ->
+                itemsIndexed(uiState.channels, key = { index, channel -> channel.url }) { index, channel ->
                     val programs = uiState.epgData[channel.url] ?: emptyList()
                     val current = programs.firstOrNull()
                     val isFav = uiState.favoriteUrls.contains(channel.url)
@@ -717,7 +717,7 @@ fun TvEpgGuideOverlay(
                             .fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        itemsIndexed(uiState.channels) { index, channel ->
+                        itemsIndexed(uiState.channels, key = { index, channel -> channel.url }) { index, channel ->
                             val programs = uiState.epgData[channel.url] ?: emptyList()
                             val current = programs.getOrNull(0)
                             val upcoming = programs.drop(1)
@@ -1511,7 +1511,7 @@ fun TvNowLiveRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.Top
     ) {
-        itemsIndexed(liveItems) { index, item ->
+        itemsIndexed(liveItems, key = { index, item -> item.channel.url }) { index, item ->
             var isFocused by remember { mutableStateOf(false) }
             val now = System.currentTimeMillis()
             val total = item.program.stop - item.program.start
@@ -1796,7 +1796,7 @@ fun TvChannelsGrid(
                                 Text("★ Favorites")
                             }
                         }
-                        items(uiState.groups) { group ->
+                        items(uiState.groups, key = { it }) { group ->
                             FilterChip(
                                 selected = uiState.selectedGroup == group,
                                 onClick = { viewModel.selectGroup(group) }
@@ -1810,7 +1810,7 @@ fun TvChannelsGrid(
                 // Grid Content Row Items
                 val columns = 5
                 val rows = (uiState.channels.size + columns - 1) / columns
-                items(rows) { rowIndex ->
+                items(rows, key = { it }) { rowIndex ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -1942,7 +1942,7 @@ fun TvFullEpgGuide(
             }
         }
         
-        items(uiState.channels) { channel ->
+        items(uiState.channels, key = { it.url }) { channel ->
             val programs = uiState.epgData[channel.url] ?: emptyList()
             Row(
                 modifier = Modifier
@@ -2020,7 +2020,7 @@ fun TvFullEpgGuide(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        items(programs) { program ->
+                        items(programs, key = { it.channelId + "_" + it.start }) { program ->
                             val durationMin = (program.stop - program.start) / 60000
                             val cardWidth = (durationMin * 5).coerceIn(160L, 600L).toInt().dp
                             

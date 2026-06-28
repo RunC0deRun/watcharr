@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -50,6 +51,7 @@ class MainActivity : ComponentActivity() {
     private val isInPipMode = MutableStateFlow(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         
         setContent {
@@ -69,7 +71,7 @@ class MainActivity : ComponentActivity() {
 
             IPTVAppTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().systemBarsPadding(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     MainScreen(viewModel = viewModel, isInPipMode = pipState)
@@ -621,7 +623,7 @@ fun CategoryGroupsRow(uiState: MobileUiState, viewModel: MobileViewModel) {
                 label = { Text("★ Favorites") }
             )
         }
-        items(uiState.groups) { group ->
+        items(uiState.groups, key = { it }) { group ->
             FilterChip(
                 selected = uiState.selectedGroup == group,
                 onClick = { viewModel.selectGroup(group) },
@@ -657,7 +659,7 @@ fun ChannelsList(uiState: MobileUiState, viewModel: MobileViewModel, modifier: M
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(uiState.channels) { channel ->
+            items(uiState.channels, key = { it.url }) { channel ->
                 val programs = uiState.epgData[channel.url] ?: emptyList()
                 val current = programs.firstOrNull()
                 val next = programs.firstOrNull { it.start > System.currentTimeMillis() }
@@ -1034,7 +1036,7 @@ fun ActiveChannelEpgGuide(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(programs) { program ->
+                items(programs, key = { it.channelId + "_" + it.start }) { program ->
                     EpgProgramTimelineItem(program = program, onClick = { onProgramClick(program) })
                 }
             }
