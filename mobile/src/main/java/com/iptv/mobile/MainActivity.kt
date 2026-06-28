@@ -213,7 +213,7 @@ fun MobileSplashScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF062A1F)),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -852,7 +852,7 @@ fun VideoPlayerContainer(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFF062A1F)),
+                    .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
