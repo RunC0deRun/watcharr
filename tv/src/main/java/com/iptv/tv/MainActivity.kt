@@ -1656,7 +1656,7 @@ fun TvChannelsGrid(
             }
         }
         if (items.size >= 3) {
-            items.shuffled().take(3)
+            items.sortedBy { it.program.start }.take(3)
         } else {
             val fallbackItems = mutableListOf<CarouselItem>()
             for (channel in uiState.channels) {
@@ -1668,7 +1668,7 @@ fun TvChannelsGrid(
                 }
             }
             if (fallbackItems.size >= 3) {
-                fallbackItems.shuffled().take(3)
+                fallbackItems.sortedBy { it.program.start }.take(3)
             } else {
                 val allItems = mutableListOf<CarouselItem>()
                 for (channel in uiState.channels) {
@@ -1677,7 +1677,7 @@ fun TvChannelsGrid(
                         allItems.add(CarouselItem(prog, channel))
                     }
                 }
-                allItems.shuffled().take(3)
+                allItems.sortedBy { it.program.start }.take(3)
             }
         }
     }
