@@ -94,21 +94,7 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
                     matchesGroup && matchesSearch
                 }
 
-                val epgData = filteredChannels.associate { channel ->
-                    val current = epgInfo.activePrograms.firstOrNull {
-                        EpgMatcher.isMatch(channel.tvgId, channel.name, it.channelId)
-                    }
-                    val upcoming = epgInfo.upcomingPrograms.filter {
-                        EpgMatcher.isMatch(channel.tvgId, channel.name, it.channelId)
-                    }
-                    
-                    val programs = mutableListOf<ProgramEntity>()
-                    if (current != null) {
-                        programs.add(current)
-                    }
-                    programs.addAll(upcoming)
-                    channel.url to programs
-                }
+                val epgData = buildEpgData(filteredChannels, epgInfo)
 
                 TvUiState(
                     channels = filteredChannels,
