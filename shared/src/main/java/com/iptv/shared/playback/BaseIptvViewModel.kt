@@ -227,8 +227,8 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
                         channelDao.deleteAll()
                         val batch = mutableListOf<ChannelEntity>()
                         val batchSize = 1000
-                        M3uParser.parse(fileInputStream).collect { track ->
-                            batch.add(track.toEntity())
+                        M3uParser.parse(fileInputStream).collect { channel ->
+                            batch.add(channel)
                             if (batch.size >= batchSize) {
                                 channelDao.insertAll(batch)
                                 batch.clear()

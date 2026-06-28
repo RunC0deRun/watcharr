@@ -1,5 +1,6 @@
 package com.iptv.shared.data.parser
 
+import com.iptv.shared.data.db.ChannelEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import java.io.BufferedReader
@@ -11,7 +12,7 @@ object M3uParser {
      * Parses an M3U stream line-by-line and emits channels as they are found.
      * This avoids memory spikes when loading large playlists.
      */
-    fun parse(inputStream: InputStream): Flow<M3uTrack> = flow {
+    fun parse(inputStream: InputStream): Flow<ChannelEntity> = flow {
         BufferedReader(InputStreamReader(inputStream)).use { reader ->
             var line: String?
             var currentMetadata: Map<String, String>? = null
@@ -33,7 +34,7 @@ object M3uParser {
                         val url = trimmedLine
                         if (url.isNotEmpty()) {
                             emit(
-                                M3uTrack(
+                                ChannelEntity(
                                     name = currentName,
                                     url = url,
                                     tvgId = currentMetadata?.get("tvg-id"),
