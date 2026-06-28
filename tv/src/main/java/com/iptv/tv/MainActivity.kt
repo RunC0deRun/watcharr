@@ -660,6 +660,13 @@ fun TvEpgGuideOverlay(
 
     val focusRequester = remember { FocusRequester() }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(10000)
+            now = System.currentTimeMillis()
+        }
+    }
 
     LaunchedEffect(activeChannelIndex, uiState.channels) {
         if (uiState.channels.isNotEmpty() && activeChannelIndex in uiState.channels.indices) {
@@ -804,7 +811,6 @@ fun TvEpgGuideOverlay(
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
-                                            val now = System.currentTimeMillis()
                                             val total = current.stop - current.start
                                             val progress = if (total > 0) (now - current.start).toFloat() / total else 0f
                                             Spacer(modifier = Modifier.height(4.dp))
@@ -1504,6 +1510,14 @@ fun TvNowLiveRow(
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit,
     firstItemFocusRequester: FocusRequester? = null
 ) {
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(10000)
+            now = System.currentTimeMillis()
+        }
+    }
+
     LazyRow(
         modifier = Modifier
             .fillMaxWidth()
@@ -1513,7 +1527,6 @@ fun TvNowLiveRow(
     ) {
         itemsIndexed(liveItems, key = { index, item -> item.channel.url }) { index, item ->
             var isFocused by remember { mutableStateOf(false) }
-            val now = System.currentTimeMillis()
             val total = item.program.stop - item.program.start
             val progress = if (total > 0) (now - item.program.start).toFloat() / total else 0f
 
