@@ -173,14 +173,6 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
         // Implemented by subclasses
     }
 
-    fun updateUrlInput(url: String) {
-        _playlistUrlInput.value = url
-    }
-
-    fun updateEpgUrlInput(url: String) {
-        _epgUrlInput.value = url
-    }
-
     fun selectGroup(group: String?) {
         _selectedGroup.value = group
     }
