@@ -76,6 +76,14 @@ class CarRestrictionsManager(private val context: Context) {
 
     fun release() {
         try {
+            if (uxRestrictionsManager != null) {
+                val unregisterListenerMethod = uxRestrictionsManager!!.javaClass.getMethod("unregisterListener")
+                unregisterListenerMethod.invoke(uxRestrictionsManager)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        try {
             val carClass = carInstance?.javaClass ?: return
             val disconnectMethod = carClass.getMethod("disconnect")
             disconnectMethod.invoke(carInstance)

@@ -32,7 +32,6 @@ class PlaybackService : MediaLibraryService() {
 
     private val serviceJob = kotlinx.coroutines.SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
-    private var AAConnectionJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -72,20 +71,6 @@ class PlaybackService : MediaLibraryService() {
                 playerEngine.updateVideoRestriction(restricted)
             }
         }
-        
-        // Monitor Android Auto controller connections
-        // If Android Auto is connected, we restrict video to save bandwidth
-        AAConnectionJob = serviceScope.launch {
-            while (true) {
-                delay(2000)
-                val hasAndroidAuto = mediaLibrarySession.connectedControllers.any {
-                    it.packageName == "com.google.android.projection.gearhead"
-                }
-                if (hasAndroidAuto) {
-                    playerEngine.updateVideoRestriction(true)
-                }
-            }
-        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
@@ -93,7 +78,6 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
-        AAConnectionJob?.cancel()
         serviceJob.cancel()
         carRestrictionsManager.release()
         mediaLibrarySession.release()
@@ -114,10 +98,26 @@ class PlaybackService : MediaLibraryService() {
                     controller.uid == android.os.Process.SYSTEM_UID ||
                     controller.uid == android.os.Process.myUid()
 
+            if (isTrusted && packageName == "com.google.android.projection.gearhead") {
+                playerEngine.updateVideoRestriction(true)
+            }
+
             return if (isTrusted) {
                 super.onConnect(session, controller)
             } else {
                 MediaSession.ConnectionResult.reject()
+            }
+        }
+
+        override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
+            super.onDisconnected(session, controller)
+            if (controller.packageName == "com.google.android.projection.gearhead") {
+                val hasOtherAA = session.connectedControllers.any {
+                    it.packageName == "com.google.android.projection.gearhead" && it != controller
+                }
+                if (!hasOtherAA) {
+                    playerEngine.updateVideoRestriction(false)
+                }
             }
         }
 
@@ -183,10 +183,6 @@ class PlaybackService : MediaLibraryService() {
                         channel.toMediaItem(currentProgram?.title)
                     }
                     
-                    launch(Dispatchers.Main) {
-                        playerEngine.setActiveChannelList(dbChannels)
-                    }
-                    
                     items.addAll(mediaItems)
                     listenable.set(LibraryResult.ofItemList(items, params))
                 } catch (e: Exception) {
@@ -232,9 +228,11 @@ class PlaybackService : MediaLibraryService() {
             
             serviceScope.launch(Dispatchers.IO) {
                 val firstItem = resolvedItems.firstOrNull() ?: return@launch
-                val channel = database.channelDao().getAllChannels().firstOrNull { it.url == firstItem.mediaId }
+                val channels = database.channelDao().getAllChannels()
+                val channel = channels.firstOrNull { it.url == firstItem.mediaId }
                 if (channel != null) {
                     launch(Dispatchers.Main) {
+                        playerEngine.setActiveChannelList(channels)
                         playerEngine.setCurrentChannel(channel)
                     }
                 }

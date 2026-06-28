@@ -113,26 +113,43 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
 
     fun completeOnboarding(playlistUrl: String, epgUrl: String, dispatcharrUrl: String?, useDispatcharr: Boolean) {
         viewModelScope.launch {
+            val trimmedPlaylist = playlistUrl.trim().removeSuffix("/")
+            val trimmedEpg = epgUrl.trim().removeSuffix("/")
+            val trimmedDispatcharr = dispatcharrUrl?.trim()?.removeSuffix("/") ?: ""
+
+            if (trimmedPlaylist.isNotEmpty() && !isValidUrl(trimmedPlaylist)) {
+                _sideEffects.emit(PlaybackSideEffect.ShowToast("Invalid Playlist URL format!"))
+                return@launch
+            }
+            if (trimmedEpg.isNotEmpty() && !isValidUrl(trimmedEpg)) {
+                _sideEffects.emit(PlaybackSideEffect.ShowToast("Invalid EPG URL format!"))
+                return@launch
+            }
+            if (useDispatcharr && trimmedDispatcharr.isNotEmpty() && !isValidUrl(trimmedDispatcharr)) {
+                _sideEffects.emit(PlaybackSideEffect.ShowToast("Invalid Dispatcharr URL format!"))
+                return@launch
+            }
+
             prefs.edit().apply {
-                putString("playlist_url", playlistUrl)
-                putString("epg_url", epgUrl)
-                putString("dispatcharr_url", dispatcharrUrl)
+                putString("playlist_url", trimmedPlaylist)
+                putString("epg_url", trimmedEpg)
+                putString("dispatcharr_url", trimmedDispatcharr)
                 putBoolean("use_dispatcharr", useDispatcharr)
                 putBoolean("onboarding_completed", true)
                 apply()
             }
 
-            _playlistUrlInput.value = playlistUrl
-            _epgUrlInput.value = epgUrl
+            _playlistUrlInput.value = trimmedPlaylist
+            _epgUrlInput.value = trimmedEpg
             _useDispatcharr.value = useDispatcharr
-            _dispatcharrUrl.value = dispatcharrUrl ?: ""
+            _dispatcharrUrl.value = trimmedDispatcharr
             _isOnboardingCompleted.value = true
 
-            if (playlistUrl.isNotEmpty()) {
-                handleIntent(PlaybackIntent.LoadPlaylist(playlistUrl))
+            if (trimmedPlaylist.isNotEmpty()) {
+                handleIntent(PlaybackIntent.LoadPlaylist(trimmedPlaylist))
             }
-            if (epgUrl.isNotEmpty()) {
-                loadEpg(epgUrl)
+            if (trimmedEpg.isNotEmpty()) {
+                loadEpg(trimmedEpg)
             }
         }
     }
@@ -190,13 +207,26 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
     protected fun loadPlaylist(m3uUrl: String) {
         viewModelScope.launch {
             _isLoadingPlaylist.value = true
+            val context = getApplication<Application>()
+            val tempFile = java.io.File.createTempFile("playlist", ".m3u", context.cacheDir)
             try {
                 withContext(Dispatchers.IO) {
-                    URL(m3uUrl).openStream().use { inputStream ->
+                    val url = URL(m3uUrl)
+                    val conn = url.openConnection()
+                    conn.connectTimeout = 30000
+                    conn.readTimeout = 30000
+                    conn.getInputStream().use { input ->
+                        tempFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    (conn as? java.net.HttpURLConnection)?.disconnect()
+
+                    java.io.FileInputStream(tempFile).use { fileInputStream ->
                         channelDao.deleteAll()
                         val batch = mutableListOf<ChannelEntity>()
                         val batchSize = 1000
-                        M3uParser.parse(inputStream).collect { track ->
+                        M3uParser.parse(fileInputStream).collect { track ->
                             batch.add(track.toEntity())
                             if (batch.size >= batchSize) {
                                 channelDao.insertAll(batch)
@@ -213,6 +243,9 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
                 e.printStackTrace()
                 _sideEffects.emit(PlaybackSideEffect.ShowToast("Failed to load playlist: ${e.localizedMessage}"))
             } finally {
+                if (tempFile.exists()) {
+                    tempFile.delete()
+                }
                 _isLoadingPlaylist.value = false
             }
         }
@@ -235,6 +268,16 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
             } finally {
                 _isLoadingEpg.value = false
             }
+        }
+    }
+
+    private fun isValidUrl(url: String): Boolean {
+        if (url.isEmpty()) return true
+        return try {
+            val parsed = URL(url)
+            parsed.protocol == "http" || parsed.protocol == "https"
+        } catch (e: Exception) {
+            false
         }
     }
 
