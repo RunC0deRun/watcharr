@@ -137,6 +137,11 @@ class PlayerEngine(private val context: Context) {
         }
     }
 
+    fun stop() {
+        exoPlayer?.stop()
+        exoPlayer?.clearMediaItems()
+    }
+
     fun release() {
         retryJob?.cancel()
         job.cancel()
