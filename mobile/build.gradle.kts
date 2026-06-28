@@ -15,9 +15,6 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
-        }
     }
 
     buildTypes {
@@ -58,7 +55,6 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.play.services.code.scanner)
-    implementation(libs.coil.compose)
 
     debugImplementation(libs.compose.ui.tooling)
 
