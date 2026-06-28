@@ -12,39 +12,40 @@ object M3uParser {
      * This avoids memory spikes when loading large playlists.
      */
     fun parse(inputStream: InputStream): Flow<M3uTrack> = flow {
-        val reader = BufferedReader(InputStreamReader(inputStream))
-        var line: String?
-        var currentMetadata: Map<String, String>? = null
-        var currentName: String? = null
+        BufferedReader(InputStreamReader(inputStream)).use { reader ->
+            var line: String?
+            var currentMetadata: Map<String, String>? = null
+            var currentName: String? = null
 
-        val extinfPrefix = "#EXTINF:"
-        
-        while (reader.readLine().also { line = it } != null) {
-            val trimmedLine = line!!.trim()
-            if (trimmedLine.isEmpty()) continue
+            val extinfPrefix = "#EXTINF:"
+            
+            while (reader.readLine().also { line = it } != null) {
+                val trimmedLine = line!!.trim()
+                if (trimmedLine.isEmpty()) continue
 
-            if (trimmedLine.startsWith(extinfPrefix)) {
-                val rest = trimmedLine.substring(extinfPrefix.length)
-                val parsed = parseExtInfLine(rest)
-                currentMetadata = parsed.first
-                currentName = parsed.second
-            } else if (!trimmedLine.startsWith("#")) {
-                if (currentName != null) {
-                    val url = trimmedLine
-                    if (url.isNotEmpty()) {
-                        emit(
-                            M3uTrack(
-                                name = currentName,
-                                url = url,
-                                tvgId = currentMetadata?.get("tvg-id"),
-                                tvgName = currentMetadata?.get("tvg-name"),
-                                logoUrl = currentMetadata?.get("tvg-logo"),
-                                groupTitle = currentMetadata?.get("group-title")
+                if (trimmedLine.startsWith(extinfPrefix)) {
+                    val rest = trimmedLine.substring(extinfPrefix.length)
+                    val parsed = parseExtInfLine(rest)
+                    currentMetadata = parsed.first
+                    currentName = parsed.second
+                } else if (!trimmedLine.startsWith("#")) {
+                    if (currentName != null) {
+                        val url = trimmedLine
+                        if (url.isNotEmpty()) {
+                            emit(
+                                M3uTrack(
+                                    name = currentName,
+                                    url = url,
+                                    tvgId = currentMetadata?.get("tvg-id"),
+                                    tvgName = currentMetadata?.get("tvg-name"),
+                                    logoUrl = currentMetadata?.get("tvg-logo"),
+                                    groupTitle = currentMetadata?.get("group-title")
+                                )
                             )
-                        )
+                        }
+                        currentMetadata = null
+                        currentName = null
                     }
-                    currentMetadata = null
-                    currentName = null
                 }
             }
         }

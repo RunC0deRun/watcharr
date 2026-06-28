@@ -311,7 +311,7 @@ fun TvMainScreen(viewModel: TvViewModel) {
                                         true
                                     }
                                     Key.Back -> {
-                                        viewModel.playerEngine.release()
+                                        viewModel.playerEngine.stop()
                                         true
                                     }
                                     else -> false
@@ -594,6 +594,8 @@ fun TvSidebarSwapper(
     onSelectChannel: (ChannelEntity) -> Unit,
     onClose: () -> Unit
 ) {
+    BackHandler(onBack = onClose)
+
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -733,6 +735,8 @@ fun TvEpgGuideOverlay(
     onClose: () -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {
+    BackHandler(onBack = onClose)
+
     val activeChannel = (uiState.playbackState as? PlaybackState.Playing)?.channel
     val activeChannelIndex = remember(uiState.channels, activeChannel) {
         if (activeChannel != null) {

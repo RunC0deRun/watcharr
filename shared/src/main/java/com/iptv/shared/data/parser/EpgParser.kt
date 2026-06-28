@@ -12,14 +12,16 @@ import java.util.zip.GZIPInputStream
 
 object EpgParser {
 
-    private val xmltvDateFormat = SimpleDateFormat("yyyyMMddHHmmss Z", Locale.US)
+    private val xmltvFormatter = java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z", Locale.US)
+    private val fallbackFormatter = java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss", Locale.US)
 
     /**
      * Incrementally parses XMLTV events sequentially from raw or gzip stream.
      * Emits ProgramEntity as they are parsed to avoid loading full guide into memory.
      */
     fun parse(inputStream: InputStream, isGzip: Boolean): Flow<ProgramEntity> = flow {
-        val stream = if (isGzip) GZIPInputStream(inputStream) else inputStream
+        inputStream.use { rawStream ->
+            val stream = if (isGzip) GZIPInputStream(rawStream) else rawStream
         val factory = XmlPullParserFactory.newInstance()
         factory.isNamespaceAware = true
         val parser = factory.newPullParser()
@@ -77,6 +79,7 @@ object EpgParser {
             }
             eventType = parser.next()
         }
+        }
     }
 
     private fun parseXmltvDate(dateStr: String): Long {
@@ -87,11 +90,13 @@ object EpgParser {
             dateStr
         }
         return try {
-            xmltvDateFormat.parse(formatted)?.time ?: 0L
+            java.time.ZonedDateTime.parse(formatted, xmltvFormatter).toInstant().toEpochMilli()
         } catch (e: Exception) {
             try {
-                val fallbackFormat = SimpleDateFormat("yyyyMMddHHmmss", Locale.US)
-                fallbackFormat.parse(formatted)?.time ?: 0L
+                java.time.LocalDateTime.parse(formatted, fallbackFormatter)
+                    .atZone(java.time.ZoneOffset.UTC)
+                    .toInstant()
+                    .toEpochMilli()
             } catch (ex: Exception) {
                 0L
             }

@@ -30,7 +30,8 @@ class PlaybackService : MediaLibraryService() {
     private lateinit var carRestrictionsManager: CarRestrictionsManager
     private lateinit var database: AppDatabase
 
-    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private val serviceJob = kotlinx.coroutines.SupervisorJob()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
     private var AAConnectionJob: Job? = null
 
     override fun onCreate() {
@@ -93,6 +94,7 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         AAConnectionJob?.cancel()
+        serviceJob.cancel()
         carRestrictionsManager.release()
         mediaLibrarySession.release()
         super.onDestroy()
@@ -100,6 +102,25 @@ class PlaybackService : MediaLibraryService() {
 
     private inner class LibraryCallback : MediaLibrarySession.Callback {
         
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo
+        ): MediaSession.ConnectionResult {
+            val packageName = controller.packageName
+            val isTrusted = packageName == this@PlaybackService.packageName ||
+                    packageName == "com.android.systemui" ||
+                    packageName == "com.google.android.projection.gearhead" ||
+                    packageName == "com.google.android.googlequicksearchbox" ||
+                    controller.uid == android.os.Process.SYSTEM_UID ||
+                    controller.uid == android.os.Process.myUid()
+
+            return if (isTrusted) {
+                super.onConnect(session, controller)
+            } else {
+                MediaSession.ConnectionResult.reject()
+            }
+        }
+
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
             browser: MediaSession.ControllerInfo,

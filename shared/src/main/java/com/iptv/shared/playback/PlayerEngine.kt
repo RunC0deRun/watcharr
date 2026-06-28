@@ -26,7 +26,8 @@ class PlayerEngine(private val context: Context) {
     private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private val job = kotlinx.coroutines.SupervisorJob()
+    private val scope = CoroutineScope(Dispatchers.Main + job)
     private var retryJob: Job? = null
     private var retryAttempt = 0
     private var currentChannel: ChannelEntity? = null
@@ -136,11 +137,18 @@ class PlayerEngine(private val context: Context) {
         }
     }
 
+    fun stop() {
+        exoPlayer?.stop()
+        exoPlayer?.clearMediaItems()
+    }
+
     fun release() {
         retryJob?.cancel()
+        job.cancel()
         exoPlayer?.release()
         exoPlayer = null
         _playbackState.value = PlaybackState.Idle
+        PlayerEngineProvider.clear()
     }
 
     fun setActiveChannelList(channels: List<ChannelEntity>) {
