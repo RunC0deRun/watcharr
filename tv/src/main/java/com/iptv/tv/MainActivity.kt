@@ -249,7 +249,6 @@ fun TvMainScreen(viewModel: TvViewModel) {
         TvOnboardingScreen(uiState = uiState, viewModel = viewModel)
         return
     }
-    var showUrlDialog by remember { mutableStateOf(false) }
     
     val setupPlaylistFocusRequester = remember { FocusRequester() }
     val playerFocusRequester = remember { FocusRequester() }
@@ -437,94 +436,6 @@ fun TvMainScreen(viewModel: TvViewModel) {
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalFoundationApi::class)
-@Composable
-fun TvChannelItem(
-    channel: ChannelEntity,
-    currentProgram: ProgramEntity?,
-    nextProgram: ProgramEntity?,
-    isFavorite: Boolean,
-    onLongClick: () -> Unit,
-    onClick: () -> Unit
-) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = if (isFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .onFocusChanged { isFocused = it.isFocused }
-            .focusable()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-            .padding(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = channel.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isFocused) Color(0xFF062A1F) else Color.White,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (isFavorite) {
-                        Text(
-                            text = "★",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = if (isFocused) Color(0xFF062A1F) else Color(0xFFFFD700),
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
-                }
-                
-                val groupTitle = channel.groupTitle
-                if (!groupTitle.isNullOrEmpty()) {
-                    Text(
-                        text = groupTitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isFocused) Color(0xFF062A1F).copy(alpha = 0.8f) else Color.LightGray.copy(alpha = 0.8f)
-                    )
-                }
-
-                if (currentProgram != null) {
-                    Text(
-                        text = "Now: ${currentProgram.title}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (isFocused) Color(0xFF062A1F) else MaterialTheme.colorScheme.secondary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                if (nextProgram != null) {
-                    Text(
-                        text = "Next: ${nextProgram.title}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isFocused) Color(0xFF062A1F).copy(alpha = 0.7f) else Color.LightGray.copy(alpha = 0.6f)
-                    )
-                }
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -1420,100 +1331,6 @@ fun TvTopBar(
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-fun TvSidebar(
-    selectedTab: TvTab,
-    onTabSelected: (TvTab) -> Unit,
-    firstItemFocusRequester: FocusRequester,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .fillMaxHeight()
-            .width(96.dp)
-            .background(Color(0xFF062A1F))
-            .padding(vertical = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        // Logo
-        Text(
-            text = "W",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        TvSidebarItem(
-            icon = "📺",
-            label = "Start",
-            isSelected = selectedTab == TvTab.CHANNELS,
-            onClick = { onTabSelected(TvTab.CHANNELS) },
-            modifier = Modifier.focusRequester(firstItemFocusRequester)
-        )
-
-        TvSidebarItem(
-            icon = "📅",
-            label = "TV Guide",
-            isSelected = selectedTab == TvTab.EPG,
-            onClick = { onTabSelected(TvTab.EPG) }
-        )
-
-        TvSidebarItem(
-            icon = "⚙️",
-            label = "Setup",
-            isSelected = selectedTab == TvTab.SETTINGS,
-            onClick = { onTabSelected(TvTab.SETTINGS) }
-        )
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-fun TvSidebarItem(
-    icon: String,
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var isFocused by remember { mutableStateOf(false) }
-    Box(
-        modifier = modifier
-            .size(64.dp)
-            .onFocusChanged { isFocused = it.isFocused }
-            .clickable { onClick() }
-            .background(
-                color = if (isFocused) MaterialTheme.colorScheme.primary 
-                        else if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) 
-                        else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .border(
-                width = if (isFocused) 2.dp else if (isSelected) 1.dp else 0.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.secondary else if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(text = icon, style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.White,
-                fontSize = 10.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-            )
-        }
-    }
-}
 
 data class CarouselItem(val program: ProgramEntity, val channel: ChannelEntity)
 
