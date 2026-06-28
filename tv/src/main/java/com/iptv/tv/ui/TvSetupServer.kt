@@ -30,14 +30,57 @@ class TvSetupServer(private val onConfigReceived: (m3uUrl: String, epgUrl: Strin
                                 val reader = BufferedReader(InputStreamReader(it.inputStream))
                                 val writer = PrintWriter(it.outputStream)
 
+                                // Read the request line
+                                val requestLine = reader.readLine() ?: ""
+                                val requestParts = requestLine.split(" ")
+                                if (requestParts.size < 2) {
+                                    writer.println("HTTP/1.1 400 Bad Request")
+                                    writer.println("Connection: close")
+                                    writer.println()
+                                    writer.flush()
+                                    return@use
+                                }
+
+                                val method = requestParts[0]
+                                val path = requestParts[1]
+
                                 // Read HTTP headers
                                 var contentLength = 0
                                 var line: String?
                                 while (reader.readLine().also { line = it } != null) {
                                     if (line!!.isEmpty()) break
                                     if (line!!.startsWith("Content-Length:", ignoreCase = true)) {
-                                        contentLength = line!!.substringAfter(":").trim().toInt()
+                                        contentLength = line!!.substringAfter(":").trim().toIntOrNull() ?: 0
                                     }
+                                }
+
+                                if (method == "OPTIONS") {
+                                    writer.println("HTTP/1.1 204 No Content")
+                                    writer.println("Access-Control-Allow-Origin: *")
+                                    writer.println("Access-Control-Allow-Methods: POST, OPTIONS")
+                                    writer.println("Access-Control-Allow-Headers: Content-Type")
+                                    writer.println("Connection: close")
+                                    writer.println()
+                                    writer.flush()
+                                    return@use
+                                }
+
+                                if (method != "POST" || path != "/setup") {
+                                    writer.println("HTTP/1.1 405 Method Not Allowed")
+                                    writer.println("Allow: POST, OPTIONS")
+                                    writer.println("Connection: close")
+                                    writer.println()
+                                    writer.flush()
+                                    return@use
+                                }
+
+                                // Cap payload size to 10 KB to prevent OOM
+                                if (contentLength > 10240) {
+                                    writer.println("HTTP/1.1 413 Payload Too Large")
+                                    writer.println("Connection: close")
+                                    writer.println()
+                                    writer.flush()
+                                    return@use
                                 }
 
                                 if (contentLength > 0) {
@@ -51,22 +94,35 @@ class TvSetupServer(private val onConfigReceived: (m3uUrl: String, epgUrl: Strin
                                     }
                                     val bodyString = String(body, 0, read)
 
-                                    // Parse JSON
-                                    val json = JSONObject(bodyString)
-                                    val playlistUrl = json.getString("playlistUrl")
-                                    val epgUrl = json.optString("epgUrl", "")
+                                    try {
+                                        // Parse and validate JSON
+                                        val json = JSONObject(bodyString)
+                                        val playlistUrl = json.getString("playlistUrl")
+                                        val epgUrl = json.optString("epgUrl", "")
 
-                                    withContext(Dispatchers.Main) {
-                                        onConfigReceived(playlistUrl, epgUrl)
+                                        // Basic URL validation
+                                        if (playlistUrl.isEmpty() || !playlistUrl.startsWith("http")) {
+                                            throw IllegalArgumentException("Invalid playlist URL")
+                                        }
+
+                                        withContext(Dispatchers.Main) {
+                                            onConfigReceived(playlistUrl, epgUrl)
+                                        }
+
+                                        // Send HTTP response
+                                        writer.println("HTTP/1.1 200 OK")
+                                        writer.println("Content-Type: application/json")
+                                        writer.println("Access-Control-Allow-Origin: *")
+                                        writer.println("Connection: close")
+                                        writer.println()
+                                        writer.println("{\"status\":\"success\"}")
+                                    } catch (e: Exception) {
+                                        writer.println("HTTP/1.1 400 Bad Request")
+                                        writer.println("Content-Type: application/json")
+                                        writer.println("Connection: close")
+                                        writer.println()
+                                        writer.println("{\"status\":\"error\",\"message\":\"${e.message}\"}")
                                     }
-
-                                    // Send HTTP response
-                                    writer.println("HTTP/1.1 200 OK")
-                                    writer.println("Content-Type: application/json")
-                                    writer.println("Access-Control-Allow-Origin: *")
-                                    writer.println("Connection: close")
-                                    writer.println()
-                                    writer.println("{\"status\":\"success\"}")
                                 } else {
                                     writer.println("HTTP/1.1 400 Bad Request")
                                     writer.println("Connection: close")

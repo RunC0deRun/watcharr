@@ -10,6 +10,7 @@ import com.iptv.shared.data.db.ChannelEntity
 import com.iptv.shared.data.db.FavoriteEntity
 import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.data.epg.EpgFetcher
+import com.iptv.shared.data.epg.EpgMatcher
 import com.iptv.shared.data.epg.EpgSyncWorker
 import com.iptv.shared.data.parser.M3uParser
 import com.iptv.shared.mvi.PlaybackIntent
@@ -268,6 +269,36 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
             } finally {
                 _isLoadingEpg.value = false
             }
+        }
+    }
+
+    protected fun buildEpgData(
+        filteredChannels: List<ChannelEntity>,
+        epgInfo: EpgInfo
+    ): Map<String, List<ProgramEntity>> {
+        val activeMapByTvg = epgInfo.activePrograms.associateBy { it.channelId.lowercase(java.util.Locale.US) }
+        val activeMapByNorm = epgInfo.activePrograms.associateBy { EpgMatcher.normalize(it.channelId) }
+
+        val upcomingGroupByTvg = epgInfo.upcomingPrograms.groupBy { it.channelId.lowercase(java.util.Locale.US) }
+        val upcomingGroupByNorm = epgInfo.upcomingPrograms.groupBy { EpgMatcher.normalize(it.channelId) }
+
+        return filteredChannels.associate { channel ->
+            val normName = EpgMatcher.normalize(channel.name)
+            val tvgIdLower = channel.tvgId?.lowercase(java.util.Locale.US)
+
+            val current = (if (!tvgIdLower.isNullOrEmpty()) activeMapByTvg[tvgIdLower] else null)
+                ?: activeMapByNorm[normName]
+
+            val upcoming = (if (!tvgIdLower.isNullOrEmpty()) upcomingGroupByTvg[tvgIdLower] else null)
+                ?: upcomingGroupByNorm[normName]
+                ?: emptyList()
+
+            val programs = mutableListOf<ProgramEntity>()
+            if (current != null) {
+                programs.add(current)
+            }
+            programs.addAll(upcoming)
+            channel.url to programs
         }
     }
 

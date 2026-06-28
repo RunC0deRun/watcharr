@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -50,6 +51,7 @@ class MainActivity : ComponentActivity() {
     private val isInPipMode = MutableStateFlow(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         
         setContent {
@@ -69,7 +71,7 @@ class MainActivity : ComponentActivity() {
 
             IPTVAppTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().systemBarsPadding(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     MainScreen(viewModel = viewModel, isInPipMode = pipState)
@@ -100,7 +102,10 @@ fun IPTVAppTheme(content: @Composable () -> Unit) {
         background = Color(0xFF062A1F), // Dark Forest Green
         surface = Color(0xFF0F3E30), // Medium Forest Green
         onBackground = Color(0xFFFAF8F5),
-        onSurface = Color(0xFFFAF8F5)
+        onSurface = Color(0xFFFAF8F5),
+        tertiary = Color(0xFF49A752),
+        tertiaryContainer = Color(0xFF0F6633),
+        error = Color(0xFFFFD700)
     )
     MaterialTheme(
         colorScheme = darkColors,
@@ -110,6 +115,11 @@ fun IPTVAppTheme(content: @Composable () -> Unit) {
 
 @Composable
 fun WatcharrLogo(modifier: Modifier = Modifier) {
+    val tertiaryColor = MaterialTheme.colorScheme.tertiary
+    val tertiaryContainerColor = MaterialTheme.colorScheme.tertiaryContainer
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+    val primaryColor = MaterialTheme.colorScheme.primary
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
@@ -158,11 +168,11 @@ fun WatcharrLogo(modifier: Modifier = Modifier) {
             }
 
             val greenBrush = Brush.verticalGradient(
-                colors = listOf(Color(0xFF49A752), Color(0xFF0F6633))
+                colors = listOf(tertiaryColor, tertiaryContainerColor)
             )
 
             val yellowBrush = Brush.verticalGradient(
-                colors = listOf(Color(0xFFF5C453), Color(0xFFDF9A28))
+                colors = listOf(secondaryColor, primaryColor)
             )
 
             drawPath(
@@ -192,7 +202,7 @@ fun WatcharrLogo(modifier: Modifier = Modifier) {
             text = "WATCHARR",
             style = MaterialTheme.typography.displayMedium,
             fontWeight = FontWeight.Black,
-            color = Color(0xFFDF9A28)
+            color = MaterialTheme.colorScheme.primary
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -201,7 +211,7 @@ fun WatcharrLogo(modifier: Modifier = Modifier) {
             text = "Bring your own TV",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF49A752)
+            color = MaterialTheme.colorScheme.tertiary
         )
     }
 }
@@ -211,7 +221,7 @@ fun MobileSplashScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF062A1F)),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -221,7 +231,7 @@ fun MobileSplashScreen() {
             WatcharrLogo()
             Spacer(modifier = Modifier.height(32.dp))
             CircularProgressIndicator(
-                color = Color(0xFFF5C453)
+                color = MaterialTheme.colorScheme.secondary
             )
         }
     }
@@ -621,7 +631,7 @@ fun CategoryGroupsRow(uiState: MobileUiState, viewModel: MobileViewModel) {
                 label = { Text("★ Favorites") }
             )
         }
-        items(uiState.groups) { group ->
+        items(uiState.groups, key = { it }) { group ->
             FilterChip(
                 selected = uiState.selectedGroup == group,
                 onClick = { viewModel.selectGroup(group) },
@@ -657,7 +667,7 @@ fun ChannelsList(uiState: MobileUiState, viewModel: MobileViewModel, modifier: M
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(uiState.channels) { channel ->
+            items(uiState.channels, key = { it.url }) { channel ->
                 val programs = uiState.epgData[channel.url] ?: emptyList()
                 val current = programs.firstOrNull()
                 val next = programs.firstOrNull { it.start > System.currentTimeMillis() }
@@ -850,7 +860,7 @@ fun VideoPlayerContainer(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFF062A1F)),
+                    .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -861,13 +871,13 @@ fun VideoPlayerContainer(
                         text = "⚠️ Video Paused While Driving",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFDF9A28)
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Safety Mode: Video stream is hidden while the vehicle is in motion. Audio continues playing.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFFAF8F5),
+                        color = MaterialTheme.colorScheme.onBackground,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
@@ -963,7 +973,7 @@ fun ChannelListItem(
                         Text(
                             text = if (isFavorite) "★" else "☆",
                             style = MaterialTheme.typography.titleMedium,
-                            color = if (isFavorite) Color(0xFFFFD700) else MaterialTheme.colorScheme.secondary
+                            color = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
                         )
                     }
                 }
@@ -1034,7 +1044,7 @@ fun ActiveChannelEpgGuide(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(programs) { program ->
+                items(programs, key = { it.channelId + "_" + it.start }) { program ->
                     EpgProgramTimelineItem(program = program, onClick = { onProgramClick(program) })
                 }
             }
