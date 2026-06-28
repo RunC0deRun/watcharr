@@ -38,6 +38,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 }
 
 dependencies {
+    api(libs.androidx.lifecycle.viewmodel.compose)
     api(libs.room.runtime)
     api(libs.room.ktx)
     ksp(libs.room.compiler)
