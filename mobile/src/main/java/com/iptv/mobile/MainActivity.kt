@@ -1044,11 +1044,12 @@ fun ActiveChannelEpgGuide(
     }
 }
 
-private val timeFormatter = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+private val timeFormatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault())
+    .withZone(java.time.ZoneId.systemDefault())
 
 fun formatTimeRange(startMs: Long, stopMs: Long): String {
-    val startStr = timeFormatter.format(java.util.Date(startMs))
-    val stopStr = timeFormatter.format(java.util.Date(stopMs))
+    val startStr = timeFormatter.format(java.time.Instant.ofEpochMilli(startMs))
+    val stopStr = timeFormatter.format(java.time.Instant.ofEpochMilli(stopMs))
     return "$startStr - $stopStr"
 }
 
