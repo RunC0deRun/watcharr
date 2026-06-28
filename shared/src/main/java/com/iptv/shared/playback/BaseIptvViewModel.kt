@@ -10,6 +10,7 @@ import com.iptv.shared.data.db.ChannelEntity
 import com.iptv.shared.data.db.FavoriteEntity
 import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.data.epg.EpgFetcher
+import com.iptv.shared.data.epg.EpgMatcher
 import com.iptv.shared.data.epg.EpgSyncWorker
 import com.iptv.shared.data.parser.M3uParser
 import com.iptv.shared.mvi.PlaybackIntent
