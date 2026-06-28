@@ -30,7 +30,8 @@ class PlaybackService : MediaLibraryService() {
     private lateinit var carRestrictionsManager: CarRestrictionsManager
     private lateinit var database: AppDatabase
 
-    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private val serviceJob = kotlinx.coroutines.SupervisorJob()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
     private var AAConnectionJob: Job? = null
 
     override fun onCreate() {
@@ -93,6 +94,7 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         AAConnectionJob?.cancel()
+        serviceJob.cancel()
         carRestrictionsManager.release()
         mediaLibrarySession.release()
         super.onDestroy()
