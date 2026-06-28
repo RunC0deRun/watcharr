@@ -244,24 +244,28 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
 
                 val url = URL(tvSetupUrl)
                 val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
-                conn.doOutput = true
-                conn.setRequestProperty("Content-Type", "application/json")
-                conn.outputStream.use { os ->
-                    os.write(jsonBytes)
-                }
+                try {
+                    conn.requestMethod = "POST"
+                    conn.connectTimeout = 5000
+                    conn.readTimeout = 5000
+                    conn.doOutput = true
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.outputStream.use { os ->
+                        os.write(jsonBytes)
+                    }
 
-                val code = conn.responseCode
-                if (code == 200) {
-                    withContext(Dispatchers.Main) {
-                        onSuccess()
+                    val code = conn.responseCode
+                    if (code == 200) {
+                        withContext(Dispatchers.Main) {
+                            onSuccess()
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            onError("TV server returned error code: $code")
+                        }
                     }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        onError("TV server returned error code: $code")
-                    }
+                } finally {
+                    conn.disconnect()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -319,21 +323,22 @@ class MobileViewModel(application: Application) : AndroidViewModel(application) 
             _isLoadingPlaylist.value = true
             try {
                 withContext(Dispatchers.IO) {
-                    val inputStream = URL(m3uUrl).openStream()
-                    channelDao.deleteAll()
-                    
-                    val batch = mutableListOf<ChannelEntity>()
-                    val batchSize = 1000
-                    
-                    M3uParser.parse(inputStream).collect { track ->
-                        batch.add(track.toEntity())
-                        if (batch.size >= batchSize) {
-                            channelDao.insertAll(batch)
-                            batch.clear()
+                    URL(m3uUrl).openStream().use { inputStream ->
+                        channelDao.deleteAll()
+                        
+                        val batch = mutableListOf<ChannelEntity>()
+                        val batchSize = 1000
+                        
+                        M3uParser.parse(inputStream).collect { track ->
+                            batch.add(track.toEntity())
+                            if (batch.size >= batchSize) {
+                                channelDao.insertAll(batch)
+                                batch.clear()
+                            }
                         }
-                    }
-                    if (batch.isNotEmpty()) {
-                        channelDao.insertAll(batch)
+                        if (batch.isNotEmpty()) {
+                            channelDao.insertAll(batch)
+                        }
                     }
                 }
                 _sideEffects.emit(PlaybackSideEffect.ShowToast("Playlist loaded successfully"))
