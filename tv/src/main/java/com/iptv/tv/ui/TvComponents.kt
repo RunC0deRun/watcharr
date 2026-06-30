@@ -25,6 +25,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.foundation.text.KeyboardActions
@@ -2264,3 +2269,394 @@ fun TvProgramDetailScreen(
         }
     }
 }
+
+@Composable
+fun PauseIcon(color: Color = Color.White) {
+    Row(
+        modifier = Modifier.size(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .fillMaxHeight()
+                .background(color, RoundedCornerShape(1.dp))
+        )
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .fillMaxHeight()
+                .background(color, RoundedCornerShape(1.dp))
+        )
+    }
+}
+
+
+
+@Composable
+fun TvPlayerCircularButton(
+    onClick: () -> Unit,
+    focusRequester: FocusRequester,
+    modifier: Modifier = Modifier,
+    content: @Composable (isFocused: Boolean) -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .focusRequester(focusRequester)
+            .onFocusChanged { isFocused = it.isFocused }
+            .focusable()
+            .onKeyEvent { keyEvent ->
+                if (keyEvent.type == KeyEventType.KeyUp && 
+                    (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                ) {
+                    onClick()
+                    true
+                } else false
+            }
+            .background(
+                color = if (isFocused) Color.White else Color.White.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(20.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        content(isFocused)
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvPlayerControlsOverlay(
+    uiState: IptvUiState,
+    viewModel: TvViewModel,
+    timeBehindLive: Long,
+    playheadTime: Long,
+    isLive: Boolean,
+    onSeekToLive: () -> Unit,
+    onClosePlayback: () -> Unit,
+    onCloseOverlay: () -> Unit
+) {
+    BackHandler(onBack = onCloseOverlay)
+    
+    val playingChannel = (uiState.playbackState as? PlaybackState.Playing)?.channel ?: return
+    
+    val currentProgram = remember(uiState.epgData, playingChannel) {
+        val programs = uiState.epgData[playingChannel.url] ?: emptyList()
+        val now = System.currentTimeMillis()
+        programs.firstOrNull { it.start <= now && it.stop >= now }
+    }
+    
+    val channelIndex = remember(uiState.channels, playingChannel) {
+        uiState.channels.indexOfFirst { it.url == playingChannel.url }
+    }
+    val channelNumber = if (channelIndex != -1) "%03d".format(channelIndex + 1) else ""
+    
+    val player = remember(viewModel) { viewModel.playerEngine.getPlayer() }
+    var isPlaying by remember { mutableStateOf(player.isPlaying) }
+    DisposableEffect(player) {
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+        }
+    }
+    
+    var userActivityTrigger by remember { mutableStateOf(0) }
+    
+    LaunchedEffect(userActivityTrigger) {
+        kotlinx.coroutines.delay(5000)
+        onCloseOverlay()
+    }
+    
+    val totalDuration = if (currentProgram != null) currentProgram.stop - currentProgram.start else 0L
+    
+    val pinkProgress = if (currentProgram != null && totalDuration > 0) {
+        ((playheadTime - currentProgram.start).toFloat() / totalDuration).coerceIn(0f, 1f)
+    } else 0f
+    
+    val liveProgress = if (currentProgram != null && totalDuration > 0) {
+        ((System.currentTimeMillis() - currentProgram.start).toFloat() / totalDuration).coerceIn(0f, 1f)
+    } else 0f
+    
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val fullTimeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    
+    val programTimeText = if (currentProgram != null) {
+        "${timeFormat.format(Date(currentProgram.start))} - ${timeFormat.format(Date(currentProgram.stop))}"
+    } else ""
+    
+    val wallClockTimeText = fullTimeFormat.format(Date(playheadTime))
+    
+    val closeFocusRequester = remember { FocusRequester() }
+    val playPauseFocusRequester = remember { FocusRequester() }
+    val liveBadgeFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(100)
+        playPauseFocusRequester.requestFocus()
+    }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            .onKeyEvent { keyEvent ->
+                if (keyEvent.type == KeyEventType.KeyUp) {
+                    userActivityTrigger++
+                }
+                false
+            }
+            .padding(48.dp)
+    ) {
+        // Top Left close button
+        var isCloseFocused by remember { mutableStateOf(false) }
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .focusRequester(closeFocusRequester)
+                .onFocusChanged { isCloseFocused = it.isFocused }
+                .focusable()
+                .onKeyEvent { keyEvent ->
+                    if (keyEvent.type == KeyEventType.KeyUp && 
+                        (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                    ) {
+                        onCloseOverlay()
+                        true
+                    } else false
+                }
+                .border(
+                    width = 1.dp,
+                    color = if (isCloseFocused) Color.Transparent else Color.White.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .background(
+                    color = if (isCloseFocused) Color.White else Color.Transparent,
+                    shape = RoundedCornerShape(20.dp)
+                )
+                .focusProperties {
+                    down = playPauseFocusRequester
+                }
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Close",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (isCloseFocused) Color.Black else Color.White,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        
+        // Bottom details and controls
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+        ) {
+            // Channel logo & name
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (!playingChannel.logoUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = playingChannel.logoUrl,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.1f)),
+                        contentScale = ContentScale.Fit
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(playingChannel.name.take(1), color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+                
+                Text(
+                    text = "$channelNumber ${playingChannel.name}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Tab header: Currently Watching
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Currently Watching",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(110.dp)
+                            .height(2.dp)
+                            .background(Color(0xFFE91E63))
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Program Title
+            Text(
+                text = currentProgram?.title ?: playingChannel.name,
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+            
+            // Program Time Range
+            if (programTimeText.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = programTimeText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Controls Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Play / Pause
+                TvPlayerCircularButton(
+                    onClick = { viewModel.playerEngine.togglePlay() },
+                    focusRequester = playPauseFocusRequester,
+                    modifier = Modifier.focusProperties {
+                        up = closeFocusRequester
+                        if (!isLive) {
+                            right = liveBadgeFocusRequester
+                        }
+                    }
+                ) { isFocused ->
+                    if (isPlaying) {
+                        PauseIcon(color = if (isFocused) Color.Black else Color.White)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "Play",
+                            tint = if (isFocused) Color.Black else Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+                
+                // Progress Bar
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(8.dp)
+                        .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                ) {
+                    // White bar up to live edge
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(liveProgress)
+                            .fillMaxHeight()
+                            .background(Color.White, RoundedCornerShape(4.dp))
+                    )
+                    
+                    // Pink bar up to playhead
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(pinkProgress)
+                            .fillMaxHeight()
+                            .background(Color(0xFFE91E63), RoundedCornerShape(4.dp))
+                    )
+                }
+                
+                // Time Text
+                Text(
+                    text = wallClockTimeText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                // LIVE Badge / Button
+                var isLiveBadgeFocused by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .then(
+                            if (!isLive) {
+                                Modifier
+                                    .focusRequester(liveBadgeFocusRequester)
+                                    .onFocusChanged { isLiveBadgeFocused = it.isFocused }
+                                    .focusable()
+                                    .onKeyEvent { keyEvent ->
+                                        if (keyEvent.type == KeyEventType.KeyUp && 
+                                            (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                                        ) {
+                                            onSeekToLive()
+                                            true
+                                        } else false
+                                    }
+                                    .focusProperties {
+                                        up = closeFocusRequester
+                                        left = playPauseFocusRequester
+                                    }
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .background(
+                            color = if (isLive) {
+                                Color(0xFFE91E63) // Pink
+                            } else {
+                                if (isLiveBadgeFocused) Color.White else Color.White.copy(alpha = 0.2f) // White or semi-trans
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(
+                                    color = if (isLive) Color.White else (if (isLiveBadgeFocused) Color.Black else Color.White),
+                                    shape = RoundedCornerShape(3.dp)
+                                )
+                        )
+                        Text(
+                            text = "LIVE",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isLive) Color.White else (if (isLiveBadgeFocused) Color.Black else Color.White),
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
