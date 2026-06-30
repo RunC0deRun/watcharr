@@ -1388,9 +1388,14 @@ fun TvTopBar(
 
 data class CarouselItem(val program: ProgramEntity, val channel: ChannelEntity)
 
+private val programDayTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM HH:mm", java.util.Locale.getDefault())
+    .withZone(java.time.ZoneId.systemDefault())
+
+private val programDayFormatter = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", java.util.Locale.getDefault())
+    .withZone(java.time.ZoneId.systemDefault())
+
 private fun formatProgramDayTime(timeMs: Long): String {
-    val sdf = java.text.SimpleDateFormat("EEE d MMM HH:mm", java.util.Locale.getDefault())
-    return sdf.format(java.util.Date(timeMs))
+    return programDayTimeFormatter.format(java.time.Instant.ofEpochMilli(timeMs))
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -2497,8 +2502,7 @@ fun TvProgramDetailScreen(
             val durationMin = (program.stop - program.start) / 60000
             val dateStr = remember(program.start) {
                 try {
-                    val sdf = java.text.SimpleDateFormat("EEE d MMM", java.util.Locale.getDefault())
-                    sdf.format(java.util.Date(program.start))
+                    programDayFormatter.format(java.time.Instant.ofEpochMilli(program.start))
                 } catch (e: Exception) {
                     ""
                 }

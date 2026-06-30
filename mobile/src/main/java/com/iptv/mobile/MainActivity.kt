@@ -544,8 +544,7 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
     }
 
     // Detailed Program dialog
-    if (detailedProgram != null) {
-        val program = detailedProgram!!
+    detailedProgram?.let { program ->
         val channelName = (uiState.playbackState as? PlaybackState.Playing)?.channel?.name ?: ""
 
         AlertDialog(
