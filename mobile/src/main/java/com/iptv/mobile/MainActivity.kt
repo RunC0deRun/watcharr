@@ -33,7 +33,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
 import com.iptv.mobile.ui.MobileViewModel
-import com.iptv.mobile.ui.MobileUiState
+import com.iptv.shared.mvi.IptvUiState
 import com.iptv.shared.data.db.ChannelEntity
 import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.mvi.PlaybackIntent
@@ -631,7 +631,7 @@ fun WelcomeHeader() {
 }
 
 @Composable
-fun CategoryGroupsRow(uiState: MobileUiState, viewModel: MobileViewModel) {
+fun CategoryGroupsRow(uiState: IptvUiState, viewModel: MobileViewModel) {
     LazyRow(
         modifier = Modifier
             .fillMaxWidth()
@@ -675,7 +675,7 @@ fun CategoryGroupsRow(uiState: MobileUiState, viewModel: MobileViewModel) {
 }
 
 @Composable
-fun ChannelsList(uiState: MobileUiState, viewModel: MobileViewModel, modifier: Modifier = Modifier) {
+fun ChannelsList(uiState: IptvUiState, viewModel: MobileViewModel, modifier: Modifier = Modifier) {
     if (uiState.isLoadingPlaylist) {
         Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -722,7 +722,7 @@ fun ChannelsList(uiState: MobileUiState, viewModel: MobileViewModel, modifier: M
 }
 
 @Composable
-fun ConfigureUrlsDialog(uiState: MobileUiState, viewModel: MobileViewModel, onDismiss: () -> Unit) {
+fun ConfigureUrlsDialog(uiState: IptvUiState, viewModel: MobileViewModel, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var isDispatcharrMode by remember { mutableStateOf(uiState.useDispatcharr) }
     var dispatcharrInput by remember { mutableStateOf(uiState.dispatcharrUrl) }
@@ -1062,7 +1062,7 @@ fun ChannelListItem(
 
 @Composable
 fun ActiveChannelEpgGuide(
-    uiState: MobileUiState,
+    uiState: IptvUiState,
     modifier: Modifier = Modifier,
     onProgramClick: (ProgramEntity) -> Unit
 ) {

@@ -42,7 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.*
 import com.iptv.tv.ui.TvViewModel
-import com.iptv.tv.ui.TvUiState
+import com.iptv.shared.mvi.IptvUiState
 import com.iptv.shared.data.db.ChannelEntity
 import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.mvi.PlaybackIntent
@@ -513,7 +513,7 @@ fun TvVideoPlayer(viewModel: TvViewModel, state: PlaybackState) {
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvSidebarSwapper(
-    uiState: TvUiState,
+    uiState: IptvUiState,
     viewModel: TvViewModel,
     onSelectChannel: (ChannelEntity) -> Unit,
     onClose: () -> Unit
@@ -677,7 +677,7 @@ fun TvSidebarSwapper(
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvEpgGuideOverlay(
-    uiState: TvUiState,
+    uiState: IptvUiState,
     onSelectChannel: (ChannelEntity) -> Unit,
     onClose: () -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
@@ -984,7 +984,7 @@ private fun formatTimeRange(startMs: Long, stopMs: Long): String {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun TvOnboardingScreen(uiState: TvUiState, viewModel: TvViewModel) {
+fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
     var manualMode by remember { mutableStateOf<String?>(null) } // "dispatcharr" or "custom"
     var dispatcharrUrlInput by remember { mutableStateOf("") }
     var playlistUrlInput by remember { mutableStateOf("") }
@@ -1704,7 +1704,7 @@ fun TvNowLiveRow(
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvChannelsGrid(
-    uiState: TvUiState,
+    uiState: IptvUiState,
     viewModel: TvViewModel,
     onSelectChannel: (ChannelEntity) -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
@@ -1991,7 +1991,7 @@ fun TvChannelGridItem(
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvFullEpgGuide(
-    uiState: TvUiState,
+    uiState: IptvUiState,
     viewModel: TvViewModel,
     onSelectChannel: (ChannelEntity) -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
@@ -2152,7 +2152,7 @@ fun TvFullEpgGuide(
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvSettingsPanel(
-    uiState: TvUiState,
+    uiState: IptvUiState,
     viewModel: TvViewModel
 ) {
     var isDispatcharrMode by remember { mutableStateOf(uiState.useDispatcharr) }

@@ -5,9 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.iptv.shared.data.db.ChannelEntity
 import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.data.epg.EpgMatcher
-import com.iptv.shared.mvi.PlaybackIntent
-import com.iptv.shared.mvi.PlaybackSideEffect
-import com.iptv.shared.mvi.PlaybackState
+import com.iptv.shared.mvi.*
 import com.iptv.shared.playback.BaseIptvViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,8 +17,8 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalCoroutinesApi::class)
 class MobileViewModel(application: Application) : BaseIptvViewModel(application) {
 
-    private val _uiState = MutableStateFlow(MobileUiState())
-    val uiState: StateFlow<MobileUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(IptvUiState())
+    val uiState: StateFlow<IptvUiState> = _uiState.asStateFlow()
 
     init {
         initPreferences()
@@ -68,7 +66,7 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
 
                 val epgData = buildEpgData(filteredChannels, epgInfo)
 
-                MobileUiState(
+                IptvUiState(
                     channels = filteredChannels,
                     groups = channelInfo.groups,
                     selectedGroup = selectedGroup,
@@ -157,21 +155,3 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
         val dispatcharrUrl: String
     )
 }
-
-data class MobileUiState(
-    val channels: List<ChannelEntity> = emptyList(),
-    val groups: List<String> = emptyList(),
-    val selectedGroup: String? = null,
-    val playbackState: PlaybackState = PlaybackState.Idle,
-    val isLoadingPlaylist: Boolean = false,
-    val playlistUrlInput: String = "",
-    val isLoadingEpg: Boolean = false,
-    val epgUrlInput: String = "",
-    val searchQuery: String = "",
-    val favoriteUrls: Set<String> = emptySet(),
-    val epgData: Map<String, List<ProgramEntity>> = emptyMap(),
-    val isOnboardingCompleted: Boolean = false,
-    val useDispatcharr: Boolean = false,
-    val dispatcharrUrl: String = "",
-    val isInitialized: Boolean = false
-)

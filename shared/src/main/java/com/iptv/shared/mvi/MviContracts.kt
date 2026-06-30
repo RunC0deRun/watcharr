@@ -1,6 +1,7 @@
 package com.iptv.shared.mvi
 
 import com.iptv.shared.data.db.ChannelEntity
+import com.iptv.shared.data.db.ProgramEntity
 
 sealed interface PlaybackState {
     data object Idle : PlaybackState
@@ -18,3 +19,23 @@ sealed interface PlaybackIntent {
 sealed interface PlaybackSideEffect {
     data class ShowToast(val message: String) : PlaybackSideEffect
 }
+
+data class IptvUiState(
+    val channels: List<ChannelEntity> = emptyList(),
+    val groups: List<String> = emptyList(),
+    val selectedGroup: String? = null,
+    val playbackState: PlaybackState = PlaybackState.Idle,
+    val isLoadingPlaylist: Boolean = false,
+    val playlistUrlInput: String = "",
+    val isLoadingEpg: Boolean = false,
+    val epgUrlInput: String = "",
+    val searchQuery: String = "",
+    val favoriteUrls: Set<String> = emptySet(),
+    val epgData: Map<String, List<ProgramEntity>> = emptyMap(),
+    val isOnboardingCompleted: Boolean = false,
+    val useDispatcharr: Boolean = false,
+    val dispatcharrUrl: String = "",
+    val setupQrUrl: String = "",
+    val setupStatus: String = "",
+    val isInitialized: Boolean = false
+)
