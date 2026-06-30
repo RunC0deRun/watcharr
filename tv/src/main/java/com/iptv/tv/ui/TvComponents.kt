@@ -1435,7 +1435,6 @@ fun TvChannelsGrid(
     onSelectChannel: (ChannelEntity) -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {
-    val liveFirstFocusRequester = remember { FocusRequester() }
     val carouselItems = remember(uiState.epgData, uiState.channels) {
         val now = System.currentTimeMillis()
         val twoHours = 2 * 60 * 60 * 1000
@@ -1516,8 +1515,7 @@ fun TvChannelsGrid(
                         item {
                             TvHeroCarousel(
                                 carouselItems = carouselItems,
-                                onSelectProgramDetail = onSelectProgramDetail,
-                                modifier = Modifier.focusProperties { down = liveFirstFocusRequester }
+                                onSelectProgramDetail = onSelectProgramDetail
                             )
                         }
                     }
@@ -1545,8 +1543,7 @@ fun TvChannelsGrid(
                                 TvNowLiveRow(
                                     liveItems = liveItems,
                                     onSelectChannel = onSelectChannel,
-                                    onSelectProgramDetail = onSelectProgramDetail,
-                                    firstItemFocusRequester = liveFirstFocusRequester
+                                    onSelectProgramDetail = onSelectProgramDetail
                                 )
                             }
                         }
