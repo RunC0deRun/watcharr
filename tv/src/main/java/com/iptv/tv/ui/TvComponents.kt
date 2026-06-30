@@ -225,13 +225,13 @@ fun TvVideoPlayer(viewModel: TvViewModel, state: PlaybackState) {
                             text = "Playback Error",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.Red
+                            color = MaterialTheme.colorScheme.error
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = state.message,
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -259,7 +259,7 @@ fun TvSidebarSwapper(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.4f))
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f))
             .clickable { onClose() },
         contentAlignment = Alignment.CenterStart
     ) {
@@ -283,7 +283,7 @@ fun TvSidebarSwapper(
                 text = "Channel Swapper",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
@@ -296,10 +296,10 @@ fun TvSidebarSwapper(
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
                 colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.Gray
+                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
 
@@ -382,7 +382,7 @@ fun TvSidebarSwapper(
                                     text = channel.name,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isChCardFocused) MaterialTheme.colorScheme.background else Color.White,
+                                    color = if (isChCardFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
                                     maxLines = 1
                                 )
                             }
@@ -390,7 +390,7 @@ fun TvSidebarSwapper(
                                 Text(
                                     text = current.title,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (isChCardFocused) MaterialTheme.colorScheme.background.copy(alpha = 0.8f) else Color.LightGray.copy(alpha = 0.8f),
+                                    color = if (isChCardFocused) MaterialTheme.colorScheme.background.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                                     maxLines = 1
                                 )
                             }
@@ -442,7 +442,7 @@ fun TvEpgGuideOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f))
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f))
             .clickable { onClose() },
         contentAlignment = Alignment.BottomCenter
     ) {
@@ -467,18 +467,18 @@ fun TvEpgGuideOverlay(
                         text = "TV Guide Timeline",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = "Press Back or Right to Close",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.LightGray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 if (uiState.channels.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No channels loaded.", color = Color.Gray)
+                        Text("No channels loaded.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     LazyColumn(
@@ -538,7 +538,7 @@ fun TvEpgGuideOverlay(
                                                 text = channel.name,
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isChFocused) MaterialTheme.colorScheme.background else Color.White,
+                                                color = if (isChFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -547,7 +547,7 @@ fun TvEpgGuideOverlay(
                                             Text(
                                                 text = it,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = if (isChFocused) MaterialTheme.colorScheme.background.copy(alpha = 0.8f) else Color.LightGray.copy(alpha = 0.7f),
+                                                color = if (isChFocused) MaterialTheme.colorScheme.background.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -581,7 +581,7 @@ fun TvEpgGuideOverlay(
                                             Text(
                                                 text = "Now: ${current.title}",
                                                 style = MaterialTheme.typography.bodyMedium,
-                                                color = if (isCell2Focused) MaterialTheme.colorScheme.background else Color.White,
+                                                color = if (isCell2Focused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -592,13 +592,13 @@ fun TvEpgGuideOverlay(
                                                 progress = progress.coerceIn(0f, 1f),
                                                 modifier = Modifier.fillMaxWidth().height(4.dp),
                                                 color = if (isCell2Focused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.primary,
-                                                trackColor = if (isCell2Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.3f)
+                                                trackColor = if (isCell2Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.2f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
                                             )
                                         }
                                     } else {
                                         Text(
                                             text = "No info available",
-                                            color = if (isCell2Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.8f) else Color.Gray,
+                                            color = if (isCell2Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                                             style = MaterialTheme.typography.bodyMedium
                                         )
                                     }
@@ -631,18 +631,18 @@ fun TvEpgGuideOverlay(
                                             Text(
                                                 text = "Next: ${nextProg.title}",
                                                 style = MaterialTheme.typography.bodyMedium,
-                                                color = if (isCell3Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.9f) else Color.LightGray,
+                                                color = if (isCell3Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                             Text(
                                                 text = formatTimeRange(nextProg.start, nextProg.stop),
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = if (isCell3Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.7f) else Color.Gray
+                                                color = if (isCell3Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                             )
                                         }
                                     } else {
-                                        Text("-", color = if (isCell3Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.7f) else Color.Gray)
+                                        Text("-", color = if (isCell3Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                                     }
                                 }
 
@@ -673,18 +673,18 @@ fun TvEpgGuideOverlay(
                                             Text(
                                                 text = "Later: ${laterProg.title}",
                                                 style = MaterialTheme.typography.bodyMedium,
-                                                color = if (isCell4Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.9f) else Color.LightGray,
+                                                color = if (isCell4Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
                                             Text(
                                                 text = formatTimeRange(laterProg.start, laterProg.stop),
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = if (isCell4Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.7f) else Color.Gray
+                                                color = if (isCell4Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                             )
                                         }
                                     } else {
-                                        Text("-", color = if (isCell4Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.7f) else Color.Gray)
+                                        Text("-", color = if (isCell4Focused) MaterialTheme.colorScheme.background.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                                     }
                                 }
                             }
@@ -747,7 +747,7 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                 text = "Easy Setup with Mobile",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
@@ -776,7 +776,7 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
             Text(
                 text = uiState.setupStatus,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
@@ -795,7 +795,7 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                     text = "Manual Setup",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -826,7 +826,7 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                     text = "Dispatcharr Server",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -840,10 +840,10 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                         .fillMaxWidth()
                         .focusRequester(dispatcharrFocusRequester),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.Gray
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
 
@@ -868,8 +868,8 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                         onClick = { manualMode = null },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.colors(
-                            containerColor = Color.Gray.copy(alpha = 0.2f),
-                            focusedContainerColor = Color.Gray
+                            containerColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                            focusedContainerColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     ) {
                         Text("Back")
@@ -880,7 +880,7 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                     text = "Custom URLs",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -894,10 +894,10 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                         .fillMaxWidth()
                         .focusRequester(customFocusRequester),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.Gray
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
 
@@ -911,10 +911,10 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.Gray
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
 
@@ -937,8 +937,8 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                         onClick = { manualMode = null },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.colors(
-                            containerColor = Color.Gray.copy(alpha = 0.2f),
-                            focusedContainerColor = Color.Gray
+                            containerColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                            focusedContainerColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     ) {
                         Text("Back")
@@ -1009,7 +1009,7 @@ fun TvTopBarItem(
             .clickable { onClick() }
             .background(
                 color = if (isSelected) MaterialTheme.colorScheme.primary 
-                        else if (isFocused) Color.White.copy(alpha = 0.1f) 
+                        else if (isFocused) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f) 
                         else Color.Transparent,
                 shape = RoundedCornerShape(16.dp)
             )
@@ -1020,7 +1020,7 @@ fun TvTopBarItem(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            color = if (isSelected) MaterialTheme.colorScheme.background else Color.White
+            color = if (isSelected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -1080,8 +1080,8 @@ fun TvTopBar(
             modifier = Modifier
                 .width(180.dp)
                 .height(36.dp)
-                .background(Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(18.dp))
-                .border(1.dp, Color.White.copy(alpha = 0.2f), shape = RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), shape = RoundedCornerShape(18.dp))
+                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), shape = RoundedCornerShape(18.dp))
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             contentAlignment = Alignment.CenterStart
         ) {
@@ -1089,11 +1089,11 @@ fun TvTopBar(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
                 singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 13.sp),
-                cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
+                textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.onSurface),
                 decorationBox = { innerTextField ->
                     if (searchQuery.isEmpty()) {
-                        Text("Search...", color = Color.LightGray.copy(alpha = 0.6f), fontSize = 13.sp)
+                        Text("Search...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), fontSize = 13.sp)
                     }
                     innerTextField()
                 }
@@ -1215,7 +1215,7 @@ fun TvHeroCarousel(
                             text = "Featured",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onError
                         )
                     }
 
@@ -1225,7 +1225,7 @@ fun TvHeroCarousel(
                         text = item.program.title,
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1235,7 +1235,7 @@ fun TvHeroCarousel(
                     Text(
                         text = "${item.channel.name}, ${formatProgramDayTime(item.program.start)}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.LightGray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -1254,7 +1254,7 @@ fun TvHeroCarousel(
                     modifier = Modifier
                         .size(if (idx == activeIndex) 8.dp else 6.dp)
                         .background(
-                            color = if (idx == activeIndex) Color.White else Color.White.copy(alpha = 0.4f),
+                            color = if (idx == activeIndex) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                             shape = androidx.compose.foundation.shape.CircleShape
                         )
                 )
@@ -1348,7 +1348,7 @@ fun TvNowLiveRow(
                                 Text(
                                     text = item.channel.name,
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
@@ -1361,7 +1361,7 @@ fun TvNowLiveRow(
                             .height(4.dp)
                             .align(Alignment.BottomCenter),
                         color = MaterialTheme.colorScheme.error,
-                        trackColor = Color.White.copy(alpha = 0.2f)
+                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
                     )
 
                     if (!item.channel.logoUrl.isNullOrEmpty()) {
@@ -1373,7 +1373,7 @@ fun TvNowLiveRow(
                                 .padding(start = 8.dp, bottom = 12.dp)
                                 .size(24.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Color.White.copy(alpha = 0.8f))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f))
                                 .padding(2.dp),
                             contentScale = ContentScale.Fit
                         )
@@ -1386,14 +1386,14 @@ fun TvNowLiveRow(
                     text = item.program.title,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${item.channel.name}, ${formatTimeRange(item.program.start, item.program.stop)}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.LightGray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1478,7 +1478,7 @@ fun TvChannelsGrid(
                 Text(
                     text = if (uiState.searchQuery.isNotEmpty()) "No matching channels." else "No channels loaded.",
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         } else {
@@ -1508,7 +1508,7 @@ fun TvChannelsGrid(
                                         text = "NOW LIVE",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = Color.White
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
                                         text = "• All channels",
@@ -1532,7 +1532,7 @@ fun TvChannelsGrid(
                             text = "BROWSE ALL CHANNELS",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(top = 16.dp)
                         )
                     }
@@ -1662,7 +1662,7 @@ fun TvChannelGridItem(
                     text = channel.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (isFocused) MaterialTheme.colorScheme.background else Color.White,
+                    color = if (isFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -1674,7 +1674,7 @@ fun TvChannelGridItem(
                 Text(
                     text = channel.name,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (isFocused) MaterialTheme.colorScheme.background else Color.White,
+                    color = if (isFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1703,7 +1703,7 @@ fun TvFullEpgGuide(
                     text = "TV Program Guide",
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Browse current and upcoming programs across all channels",
@@ -1754,7 +1754,7 @@ fun TvFullEpgGuide(
                                       text = channel.name,
                                       style = MaterialTheme.typography.bodyMedium,
                                       fontWeight = FontWeight.Bold,
-                                      color = if (isChFocused) MaterialTheme.colorScheme.background else Color.White,
+                                      color = if (isChFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
                                       maxLines = 2,
                                       textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                       overflow = TextOverflow.Ellipsis
@@ -1766,7 +1766,7 @@ fun TvFullEpgGuide(
                             text = channel.name,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = if (isChFocused) MaterialTheme.colorScheme.background else Color.White,
+                            color = if (isChFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
                             maxLines = 2,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             overflow = TextOverflow.Ellipsis
@@ -1782,7 +1782,7 @@ fun TvFullEpgGuide(
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.2f), shape = RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("No program data available", color = Color.Gray)
+                        Text("No program data available", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
                     LazyRow(
@@ -1824,7 +1824,7 @@ fun TvFullEpgGuide(
                                         text = program.title,
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isProgFocused) MaterialTheme.colorScheme.background else Color.White,
+                                        color = if (isProgFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -1874,7 +1874,7 @@ fun TvSettingsPanel(
             text = "Watcharr TV Settings",
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             text = "Configure your connection URLs or pair with a mobile device",
@@ -1929,10 +1929,10 @@ fun TvSettingsPanel(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = Color.Gray
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 } else {
@@ -1944,10 +1944,10 @@ fun TvSettingsPanel(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = Color.Gray
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                     OutlinedTextField(
@@ -1958,10 +1958,10 @@ fun TvSettingsPanel(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                             focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = Color.Gray
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
@@ -1999,7 +1999,7 @@ fun TvSettingsPanel(
                 Text(
                     text = "Scan this QR code using the mobile app Settings to pair.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -2018,7 +2018,7 @@ fun TvSettingsPanel(
                     Box(
                         modifier = Modifier
                             .size(160.dp)
-                            .background(Color.DarkGray, shape = RoundedCornerShape(8.dp)),
+                            .background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
@@ -2134,12 +2134,12 @@ fun TvProgramDetailScreen(
                     }
                     .clickable { onDismiss() }
                     .background(
-                        color = if (isBackFocused) MaterialTheme.colorScheme.primary else Color.Black.copy(alpha = 0.4f),
+                        color = if (isBackFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f),
                         shape = RoundedCornerShape(20.dp)
                     )
                     .border(
                         width = 1.dp,
-                        color = if (isBackFocused) MaterialTheme.colorScheme.secondary else Color.White.copy(alpha = 0.3f),
+                        color = if (isBackFocused) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                         shape = RoundedCornerShape(20.dp)
                     )
                     .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -2149,7 +2149,7 @@ fun TvProgramDetailScreen(
                     text = "< Back",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (isBackFocused) MaterialTheme.colorScheme.background else Color.White
+                    color = if (isBackFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -2166,7 +2166,7 @@ fun TvProgramDetailScreen(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(Color.White.copy(alpha = 0.1f)),
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)),
                         contentScale = ContentScale.Fit
                     )
                 }
@@ -2182,7 +2182,7 @@ fun TvProgramDetailScreen(
                 text = program.title,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             val durationMin = (program.stop - program.start) / 60000
@@ -2196,18 +2196,18 @@ fun TvProgramDetailScreen(
             Text(
                 text = "$dateStr ${formatTimeRange(program.start, program.stop)}, $durationMin min.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.LightGray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Box(
                 modifier = Modifier
-                    .background(Color.White.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp))
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
                     text = "Live / Available",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.9f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -2223,7 +2223,7 @@ fun TvProgramDetailScreen(
                     Text(
                         text = description,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                     )
                 }
             }
