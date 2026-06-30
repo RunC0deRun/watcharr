@@ -25,9 +25,12 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -716,6 +719,8 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
     val defaultFocusRequester = remember { FocusRequester() }
     val dispatcharrFocusRequester = remember { FocusRequester() }
     val customFocusRequester = remember { FocusRequester() }
+    val connectButtonFocusRequester = remember { FocusRequester() }
+    val saveButtonFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(manualMode) {
         if (manualMode == null) {
@@ -838,7 +843,14 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(dispatcharrFocusRequester),
+                        .focusRequester(dispatcharrFocusRequester)
+                        .focusProperties {
+                            down = connectButtonFocusRequester
+                        },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        connectButtonFocusRequester.requestFocus()
+                    }),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -860,7 +872,9 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                                 viewModel.saveConfigAndCompleteOnboarding(m3u, epg, dispatcharrUrlInput, true)
                             }
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(connectButtonFocusRequester)
                     ) {
                         Text("Connect")
                     }
@@ -893,6 +907,7 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(customFocusRequester),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -909,7 +924,15 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                     label = { Text("EPG XMLTV URL (Optional)") },
                     placeholder = { Text("http://...") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusProperties {
+                            down = saveButtonFocusRequester
+                        },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
+                        saveButtonFocusRequester.requestFocus()
+                    }),
                     colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -929,7 +952,9 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                                 viewModel.saveConfigAndCompleteOnboarding(playlistUrlInput, epgUrlInput, null, false)
                             }
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(saveButtonFocusRequester)
                     ) {
                         Text("Save & Load")
                     }
