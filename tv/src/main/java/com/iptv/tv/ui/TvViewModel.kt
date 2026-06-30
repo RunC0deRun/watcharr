@@ -5,8 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.iptv.shared.data.db.ChannelEntity
 import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.data.epg.EpgMatcher
-import com.iptv.shared.mvi.PlaybackIntent
-import com.iptv.shared.mvi.PlaybackState
+import com.iptv.shared.mvi.*
 import com.iptv.shared.playback.BaseIptvViewModel
 import com.iptv.tv.TvApp
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,8 +20,8 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
 
     private val app = application as TvApp
 
-    private val _uiState = MutableStateFlow(TvUiState())
-    val uiState: StateFlow<TvUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(IptvUiState())
+    val uiState: StateFlow<IptvUiState> = _uiState.asStateFlow()
 
     private val _setupQrUrl = MutableStateFlow("")
     private val _setupStatus = MutableStateFlow("Initializing setup server...")
@@ -96,7 +95,7 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
 
                 val epgData = buildEpgData(filteredChannels, epgInfo)
 
-                TvUiState(
+                IptvUiState(
                     channels = filteredChannels,
                     groups = channelInfo.groups,
                     selectedGroup = selectedGroup,
@@ -203,23 +202,3 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
         val setupStatus: String
     )
 }
-
-data class TvUiState(
-    val channels: List<ChannelEntity> = emptyList(),
-    val groups: List<String> = emptyList(),
-    val selectedGroup: String? = null,
-    val playbackState: PlaybackState = PlaybackState.Idle,
-    val isLoadingPlaylist: Boolean = false,
-    val playlistUrlInput: String = "",
-    val isLoadingEpg: Boolean = false,
-    val epgUrlInput: String = "",
-    val searchQuery: String = "",
-    val favoriteUrls: Set<String> = emptySet(),
-    val epgData: Map<String, List<ProgramEntity>> = emptyMap(),
-    val isOnboardingCompleted: Boolean = false,
-    val setupQrUrl: String = "",
-    val setupStatus: String = "",
-    val useDispatcharr: Boolean = false,
-    val dispatcharrUrl: String = "",
-    val isInitialized: Boolean = false
-)

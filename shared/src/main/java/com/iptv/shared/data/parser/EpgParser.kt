@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.flow
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
-import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.zip.GZIPInputStream
 
