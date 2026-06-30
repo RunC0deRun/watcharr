@@ -14,9 +14,11 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -1294,6 +1296,8 @@ fun TvNowLiveRow(
     liveItems: List<CarouselItem>,
     onSelectChannel: (ChannelEntity) -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit,
+    state: LazyListState = rememberLazyListState(),
+    firstVisibleIndex: Int = 0,
     firstItemFocusRequester: FocusRequester? = null
 ) {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -1305,6 +1309,7 @@ fun TvNowLiveRow(
     }
 
     LazyRow(
+        state = state,
         modifier = Modifier
             .fillMaxWidth()
             .height(150.dp),
@@ -1326,7 +1331,7 @@ fun TvNowLiveRow(
                         .fillMaxWidth()
                         .height(100.dp)
                         .then(
-                            if (index == 0 && firstItemFocusRequester != null) {
+                            if (index == firstVisibleIndex && firstItemFocusRequester != null) {
                                 Modifier.focusRequester(firstItemFocusRequester)
                             } else {
                                 Modifier
@@ -1435,6 +1440,9 @@ fun TvChannelsGrid(
     onSelectChannel: (ChannelEntity) -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {
+    val liveFirstFocusRequester = remember { FocusRequester() }
+    val lazyRowState = rememberLazyListState()
+    val firstVisibleIndex by remember { derivedStateOf { lazyRowState.firstVisibleItemIndex } }
     val carouselItems = remember(uiState.epgData, uiState.channels) {
         val now = System.currentTimeMillis()
         val twoHours = 2 * 60 * 60 * 1000
@@ -1515,7 +1523,8 @@ fun TvChannelsGrid(
                         item {
                             TvHeroCarousel(
                                 carouselItems = carouselItems,
-                                onSelectProgramDetail = onSelectProgramDetail
+                                onSelectProgramDetail = onSelectProgramDetail,
+                                modifier = Modifier.focusProperties { down = liveFirstFocusRequester }
                             )
                         }
                     }
@@ -1543,7 +1552,10 @@ fun TvChannelsGrid(
                                 TvNowLiveRow(
                                     liveItems = liveItems,
                                     onSelectChannel = onSelectChannel,
-                                    onSelectProgramDetail = onSelectProgramDetail
+                                    onSelectProgramDetail = onSelectProgramDetail,
+                                    state = lazyRowState,
+                                    firstVisibleIndex = firstVisibleIndex,
+                                    firstItemFocusRequester = liveFirstFocusRequester
                                 )
                             }
                         }
