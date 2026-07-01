@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -99,9 +100,40 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
     }
     var showUrlDialog by remember { mutableStateOf(false) }
 
-    var isPlayerFullscreen by remember { mutableStateOf(false) }
-    var showChannelsList by remember { mutableStateOf(true) }
+    var isPlayerFullscreen by rememberSaveable { mutableStateOf(false) }
+    var showChannelsList by rememberSaveable { mutableStateOf(true) }
     var detailedProgram by remember { mutableStateOf<ProgramEntity?>(null) }
+
+    val context = LocalContext.current
+    LaunchedEffect(isPlayerFullscreen) {
+        var currentContext = context
+        var activity: android.app.Activity? = null
+        while (currentContext is android.content.ContextWrapper) {
+            if (currentContext is android.app.Activity) {
+                activity = currentContext
+                break
+            }
+            currentContext = currentContext.baseContext
+        }
+        val window = activity?.window
+        if (window != null) {
+            val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+            if (isPlayerFullscreen) {
+                // Immersive fullscreen: hide status and navigation bars
+                controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+                controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else {
+                // Exit fullscreen: restore system bars
+                controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
+
+    LaunchedEffect(uiState.playbackState) {
+        if (uiState.playbackState is PlaybackState.Idle) {
+            isPlayerFullscreen = false
+        }
+    }
 
     if (isInPipMode) {
         // Picture-in-Picture mode: render ONLY the video player
@@ -119,247 +151,240 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
         return
     }
 
-    if (isPlayerFullscreen && uiState.playbackState !is PlaybackState.Idle) {
-        // Fullscreen Player view
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-            VideoPlayerContainer(
-                viewModel = viewModel,
-                state = uiState.playbackState,
-                isFullscreen = true,
-                onToggleFullscreen = { isPlayerFullscreen = false }
-            )
-        }
-        return
-    }
+    android.util.Log.d("Watcharr", "MainScreen composed. isPlayerFullscreen = $isPlayerFullscreen, playbackState = ${uiState.playbackState}")
 
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
 
-    if (isTablet) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         if (uiState.playbackState !is PlaybackState.Idle) {
-            androidx.activity.compose.BackHandler {
-                viewModel.playerEngine.stop()
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-            ) {
-                VideoPlayerContainer(
-                    viewModel = viewModel,
-                    state = uiState.playbackState,
-                    isFullscreen = true,
-                    onToggleFullscreen = {
-                        viewModel.playerEngine.stop()
-                    }
-                )
-            }
-        } else {
-            var activeTab by remember { mutableIntStateOf(0) }
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-            ) {
-                // Top Navigation Bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(horizontal = 24.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(24.dp)
-                    ) {
-                        Text(
-                            text = "Watcharr",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val tabs = listOf("Start", "TV Guide", "Setup")
-                            tabs.forEachIndexed { index, label ->
-                                val selected = activeTab == index
-                                TextButton(
-                                    onClick = { activeTab = index },
-                                    colors = ButtonDefaults.textButtonColors(
-                                        containerColor = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
-                                        contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        text = label,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Search input on the right side if Start or TV Guide tabs are active
-                    if (activeTab == 0 || activeTab == 1) {
-                        OutlinedTextField(
-                            value = uiState.searchQuery,
-                            onValueChange = { viewModel.setSearchQuery(it) },
-                            placeholder = { Text("Search channels...") },
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = null
-                                )
-                            },
-                            modifier = Modifier
-                                .width(300.dp)
-                                .height(48.dp),
-                            shape = RoundedCornerShape(24.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                            )
-                        )
-                    }
+            if (isPlayerFullscreen) {
+                androidx.activity.compose.BackHandler {
+                    android.util.Log.d("Watcharr", "Fullscreen BackHandler triggered. Setting isPlayerFullscreen = false")
+                    isPlayerFullscreen = false
                 }
+            } else {
+                androidx.activity.compose.BackHandler {
+                    android.util.Log.d("Watcharr", "Tablet/Phone inline player back pressed. Stopping player.")
+                    viewModel.playerEngine.stop()
+                }
+            }
 
-                // Main Tab Content
-                Box(
+            VideoPlayerContainer(
+                viewModel = viewModel,
+                state = uiState.playbackState,
+                isFullscreen = isPlayerFullscreen,
+                onToggleFullscreen = {
+                    android.util.Log.d("Watcharr", "onToggleFullscreen clicked! Setting isPlayerFullscreen = ${!isPlayerFullscreen}")
+                    isPlayerFullscreen = !isPlayerFullscreen
+                }
+            )
+        }
+
+        if (!isPlayerFullscreen) {
+            if (isTablet) {
+                var activeTab by rememberSaveable { mutableStateOf(0) }
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
                 ) {
-                    when (activeTab) {
-                        0 -> MobileChannelsGrid(
-                            uiState = uiState,
-                            viewModel = viewModel,
-                            onSelectChannel = { channel ->
-                                viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
-                            },
-                            onSelectProgramDetail = { program, channel ->
-                                detailedProgram = program
+                    // Top Navigation Bar
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 24.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(24.dp)
+                        ) {
+                            Text(
+                                text = "Watcharr",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val tabs = listOf("Start", "TV Guide", "Setup")
+                                tabs.forEachIndexed { index, label ->
+                                    val selected = activeTab == index
+                                    TextButton(
+                                        onClick = { activeTab = index },
+                                        colors = ButtonDefaults.textButtonColors(
+                                            containerColor = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
+                                            contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                        )
+                                    }
+                                }
                             }
-                        )
-                        1 -> MobileFullEpgGuide(
-                            uiState = uiState,
-                            viewModel = viewModel,
-                            onSelectChannel = { channel ->
-                                viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
-                            },
-                            onSelectProgramDetail = { program, channel ->
-                                detailedProgram = program
-                            }
-                        )
-                        2 -> MobileSettingsPanel(
-                            uiState = uiState,
-                            viewModel = viewModel
-                        )
+                        }
+
+                        // Search input on the right side if Start or TV Guide tabs are active
+                        if (activeTab == 0 || activeTab == 1) {
+                            OutlinedTextField(
+                                value = uiState.searchQuery,
+                                onValueChange = { viewModel.setSearchQuery(it) },
+                                placeholder = { Text("Search channels...") },
+                                singleLine = true,
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null
+                                    )
+                                },
+                                modifier = Modifier
+                                    .width(300.dp)
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                                )
+                            )
+                        }
                     }
-                }
-            }
-        }
-    } else {
-        // Standard Phone Layout
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            // Video Player Container at top
-            if (uiState.playbackState !is PlaybackState.Idle) {
-                VideoPlayerContainer(
-                    viewModel = viewModel,
-                    state = uiState.playbackState,
-                    isFullscreen = false,
-                    onToggleFullscreen = { isPlayerFullscreen = true }
-                )
-                
-                if (showChannelsList) {
-                    // Show mini EPG drawer under player
+
+                    // Main Tab Content
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(130.dp)
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f))
+                            .weight(1f)
                     ) {
-                        ActiveChannelEpgGuide(
-                            uiState = uiState,
-                            modifier = Modifier.fillMaxSize(),
-                            onProgramClick = { detailedProgram = it }
-                        )
-                    }
-                } else {
-                    // Channels list hidden: EPG Guide takes up all remaining screen space!
-                    Column(modifier = Modifier.weight(1f)) {
-                        ActiveChannelEpgGuide(
-                            uiState = uiState,
-                            modifier = Modifier.weight(1f),
-                            onProgramClick = { detailedProgram = it }
-                        )
-                        TextButton(
-                            onClick = { showChannelsList = true },
-                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp)
-                        ) {
-                            Text("▲ Show Channels List")
+                        when (activeTab) {
+                            0 -> MobileChannelsGrid(
+                                uiState = uiState,
+                                viewModel = viewModel,
+                                onSelectChannel = { channel ->
+                                    viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
+                                },
+                                onSelectProgramDetail = { program, channel ->
+                                    detailedProgram = program
+                                }
+                            )
+                            1 -> MobileFullEpgGuide(
+                                uiState = uiState,
+                                viewModel = viewModel,
+                                onSelectChannel = { channel ->
+                                    viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
+                                },
+                                onSelectProgramDetail = { program, channel ->
+                                    detailedProgram = program
+                                }
+                            )
+                            2 -> MobileSettingsPanel(
+                                uiState = uiState,
+                                viewModel = viewModel
+                            )
                         }
                     }
                 }
             } else {
-                // Elegant Welcome Header
-                WelcomeHeader()
-            }
-
-            if (showChannelsList) {
-                // Search and Setup Toolbar
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Channels",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                            if (uiState.playbackState !is PlaybackState.Idle) {
-                                TextButton(onClick = { showChannelsList = false }, modifier = Modifier.padding(start = 8.dp)) {
-                                    Text("Hide Channels", style = MaterialTheme.typography.bodyMedium)
+                // Standard Phone Layout
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                ) {
+                    if (uiState.playbackState !is PlaybackState.Idle) {
+                        if (showChannelsList) {
+                            // Show mini EPG drawer under player
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(130.dp)
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f))
+                            ) {
+                                ActiveChannelEpgGuide(
+                                    uiState = uiState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    onProgramClick = { detailedProgram = it }
+                                )
+                            }
+                        } else {
+                            // Channels list hidden: EPG Guide takes up all remaining screen space!
+                            Column(modifier = Modifier.weight(1f)) {
+                                ActiveChannelEpgGuide(
+                                    uiState = uiState,
+                                    modifier = Modifier.weight(1f),
+                                    onProgramClick = { detailedProgram = it }
+                                )
+                                TextButton(
+                                    onClick = { showChannelsList = true },
+                                    modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp)
+                                ) {
+                                    Text("▲ Show Channels List")
                                 }
                             }
                         }
-                        Button(
-                            onClick = { showUrlDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                        ) {
-                            Text("Configure")
-                        }
+                    } else {
+                        // Elegant Welcome Header
+                        WelcomeHeader()
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    if (showChannelsList) {
+                        // Search and Setup Toolbar
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Channels",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                    if (uiState.playbackState !is PlaybackState.Idle) {
+                                        TextButton(onClick = { showChannelsList = false }, modifier = Modifier.padding(start = 8.dp)) {
+                                            Text("Hide Channels", style = MaterialTheme.typography.bodyMedium)
+                                        }
+                                    }
+                                }
+                                Button(
+                                    onClick = { showUrlDialog = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Text("Configure")
+                                }
+                            }
 
-                    OutlinedTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = { viewModel.setSearchQuery(it) },
-                        placeholder = { Text("Search channels...") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            OutlinedTextField(
+                                value = uiState.searchQuery,
+                                onValueChange = { viewModel.setSearchQuery(it) },
+                                placeholder = { Text("Search channels...") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                        }
+
+                        // Category Chips Row
+                        CategoryGroupsRow(uiState = uiState, viewModel = viewModel)
+
+                        // Channels List
+                        ChannelsList(uiState = uiState, viewModel = viewModel, modifier = Modifier.weight(1f))
+                    }
                 }
-
-                // Category Chips Row
-                CategoryGroupsRow(uiState = uiState, viewModel = viewModel)
-
-                // Channels List
-                ChannelsList(uiState = uiState, viewModel = viewModel, modifier = Modifier.weight(1f))
             }
         }
     }

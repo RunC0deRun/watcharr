@@ -439,13 +439,13 @@ fun VideoPlayerContainer(
                     PlayerView(ctx).apply {
                         this.player = player
                         useController = true
-                        setFullscreenButtonClickListener { isFullScreen ->
-                            onToggleFullscreen()
-                        }
                     }
                 },
                 update = { view ->
                     view.player = player
+                    view.setFullscreenButtonClickListener { isFullScreen ->
+                        onToggleFullscreen()
+                    }
                 },
                 modifier = Modifier.fillMaxSize()
             )
