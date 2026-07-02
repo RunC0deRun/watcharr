@@ -203,7 +203,11 @@ fun TvVideoPlayer(viewModel: TvViewModel, state: PlaybackState) {
                     isFocusableInTouchMode = false
                     descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
                     isClickable = false
+                    keepScreenOn = true
                 }
+            },
+            update = { view ->
+                view.keepScreenOn = true
             },
             modifier = Modifier.fillMaxSize()
         )

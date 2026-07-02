@@ -140,7 +140,11 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                     PlayerView(ctx).apply {
                         this.player = viewModel.playerEngine.getPlayer()
                         useController = false
+                        keepScreenOn = true
                     }
+                },
+                update = { view ->
+                    view.keepScreenOn = true
                 },
                 modifier = Modifier.fillMaxSize()
             )

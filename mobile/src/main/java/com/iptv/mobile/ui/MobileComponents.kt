@@ -439,10 +439,12 @@ fun VideoPlayerContainer(
                     PlayerView(ctx).apply {
                         this.player = player
                         useController = true
+                        keepScreenOn = true
                     }
                 },
                 update = { view ->
                     view.player = player
+                    view.keepScreenOn = true
                     view.setFullscreenButtonClickListener { isFullScreen ->
                         onToggleFullscreen()
                     }
