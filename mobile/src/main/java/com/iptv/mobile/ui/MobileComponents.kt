@@ -9,8 +9,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.ui.res.painterResource
+import com.iptv.mobile.R
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -378,7 +378,7 @@ fun ConfigureUrlsDialog(uiState: IptvUiState, viewModel: MobileViewModel, onDism
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Search,
+                            painter = painterResource(id = R.drawable.ic_search),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSecondary,
                             modifier = Modifier.size(18.dp)
@@ -564,7 +564,7 @@ fun ChannelListItem(
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
-                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            painter = painterResource(id = if (isFavorite) R.drawable.ic_favorite else R.drawable.ic_favorite_border),
                             contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
                             tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                             modifier = Modifier.size(24.dp)
@@ -600,7 +600,7 @@ fun ChannelListItem(
             }
 
             Icon(
-                imageVector = Icons.Default.PlayArrow,
+                painter = painterResource(id = R.drawable.ic_play_arrow),
                 contentDescription = "Play channel",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp)
@@ -1295,7 +1295,7 @@ fun MobileNowLiveRow(
                         modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Info,
+                            painter = painterResource(id = R.drawable.ic_info),
                             contentDescription = "Program detail",
                             tint = MaterialTheme.colorScheme.secondary,
                             modifier = Modifier.size(20.dp)
@@ -1463,7 +1463,7 @@ fun MobileChannelsGrid(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Star,
+                                            painter = painterResource(id = R.drawable.ic_star),
                                             contentDescription = null,
                                             modifier = Modifier.size(16.dp)
                                         )
@@ -1865,7 +1865,7 @@ fun MobileSettingsPanel(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Info, contentDescription = null)
+                        Icon(painter = painterResource(id = R.drawable.ic_info), contentDescription = null)
                         Text("Scan TV Setup QR Code")
                     }
                 }

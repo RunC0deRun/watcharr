@@ -11,10 +11,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -244,7 +241,7 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                                 singleLine = true,
                                 leadingIcon = {
                                     Icon(
-                                        imageVector = Icons.Default.Search,
+                                        painter = painterResource(id = R.drawable.ic_search),
                                         contentDescription = null
                                     )
                                 },
