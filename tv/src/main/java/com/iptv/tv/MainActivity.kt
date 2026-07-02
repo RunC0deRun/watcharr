@@ -32,6 +32,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        if (android.os.Build.VERSION.SDK_INT >= 37) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    this,
+                    "android.permission.ACCESS_LOCAL_NETWORK"
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                androidx.core.app.ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf("android.permission.ACCESS_LOCAL_NETWORK"),
+                    101
+                )
+            }
+        }
+        
         setContent {
             // Listen to MVI Side Effects
             LaunchedEffect(key1 = Unit) {
