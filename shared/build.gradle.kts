@@ -44,6 +44,7 @@ dependencies {
     ksp(libs.room.compiler)
 
     api(libs.androidx.media3.exoplayer)
+    api(libs.androidx.media3.exoplayer.dash)
     api(libs.androidx.media3.exoplayer.hls)
     api(libs.androidx.media3.ui)
     api(libs.androidx.media3.session)
