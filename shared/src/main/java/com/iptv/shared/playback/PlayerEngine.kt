@@ -78,6 +78,7 @@ class PlayerEngine(private val context: Context) {
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                android.util.Log.e("Watcharr", "ExoPlayer playback error: ", error)
                 val errorMessage = error.localizedMessage ?: "Playback Error"
                 _playbackState.value = PlaybackState.Error(errorMessage)
                 scheduleRetry()
@@ -91,24 +92,56 @@ class PlayerEngine(private val context: Context) {
         retryJob?.cancel()
         currentChannel = channel
         
-        val player = getPlayer()
-        
-        val mediaItem = MediaItem.Builder()
-            .setUri(channel.url)
-            .setLiveConfiguration(
-                MediaItem.LiveConfiguration.Builder()
-                    .setTargetOffsetMs(3000)
-                    .setMinPlaybackSpeed(0.95f)
-                    .setMaxPlaybackSpeed(1.05f)
-                    .build()
-            )
-            .build()
-
         _playbackState.value = PlaybackState.Loading
-        player.setMediaItem(mediaItem)
-        player.prepare()
-        setVideoEnabled(!isVideoRestrictedState)
-        player.playWhenReady = true
+
+        scope.launch {
+            android.util.Log.d("Watcharr", "Original play URL: ${channel.url}")
+            val finalUrl = resolveRedirect(channel.url)
+            android.util.Log.d("Watcharr", "Resolved play URL: $finalUrl")
+            
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                val player = getPlayer()
+                val mediaItemBuilder = MediaItem.Builder()
+                    .setUri(finalUrl)
+                    .setLiveConfiguration(
+                        MediaItem.LiveConfiguration.Builder()
+                            .setTargetOffsetMs(3000)
+                            .setMinPlaybackSpeed(0.95f)
+                            .setMaxPlaybackSpeed(1.05f)
+                            .build()
+                    )
+
+                // Dynamically detect DRM stream proxying and apply Widevine configuration
+                if (finalUrl.contains("/live/")) {
+                    mediaItemBuilder.setMimeType("application/dash+xml")
+                    try {
+                        val uri = android.net.Uri.parse(finalUrl)
+                        val pathSegments = uri.pathSegments
+                        val liveIndex = pathSegments.indexOf("live")
+                        if (liveIndex != -1 && liveIndex + 1 < pathSegments.size) {
+                            val channelId = pathSegments[liveIndex + 1]
+                            val scheme = uri.scheme ?: "https"
+                            val authority = uri.authority
+                            if (authority != null) {
+                                val licenseUri = "$scheme://$authority/license/$channelId"
+                                val drmConfig = MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
+                                    .setLicenseUri(licenseUri)
+                                    .build()
+                                mediaItemBuilder.setDrmConfiguration(drmConfig)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
+                val mediaItem = mediaItemBuilder.build()
+                player.setMediaItem(mediaItem)
+                player.prepare()
+                setVideoEnabled(!isVideoRestrictedState)
+                player.playWhenReady = true
+            }
+        }
     }
 
     fun togglePlay() {
@@ -193,6 +226,31 @@ class PlayerEngine(private val context: Context) {
         if (index != -1) {
             val prevIndex = (index - 1 + activeChannelList.size) % activeChannelList.size
             play(activeChannelList[prevIndex])
+        }
+    }
+
+    private suspend fun resolveRedirect(urlStr: String): String {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val url = java.net.URL(urlStr)
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.instanceFollowRedirects = false
+                conn.connectTimeout = 3000
+                conn.readTimeout = 3000
+                conn.requestMethod = "GET"
+                val responseCode = conn.responseCode
+                if (responseCode in 300..399) {
+                    val location = conn.getHeaderField("Location")
+                    if (!location.isNullOrEmpty()) {
+                        val resolved = java.net.URL(java.net.URL(urlStr), location).toString()
+                        return@withContext resolved
+                    }
+                }
+                conn.disconnect()
+            } catch (e: Exception) {
+                android.util.Log.e("Watcharr", "Failed to resolve redirect for $urlStr", e)
+            }
+            return@withContext urlStr
         }
     }
 
