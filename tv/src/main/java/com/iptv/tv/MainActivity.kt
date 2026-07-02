@@ -73,6 +73,7 @@ fun TvMainScreen(viewModel: TvViewModel) {
     
     var showSidebar by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }
+    var showControls by remember { mutableStateOf(false) }
     var selectedProgramForDetail by remember { mutableStateOf<ProgramEntity?>(null) }
     var selectedChannelForDetail by remember { mutableStateOf<ChannelEntity?>(null) }
 
@@ -92,6 +93,47 @@ fun TvMainScreen(viewModel: TvViewModel) {
             .background(MaterialTheme.colorScheme.background)
     ) {
         if (playerActive) {
+            var timeBehindLive by remember { mutableStateOf(0L) }
+            var playheadTime by remember { mutableStateOf(System.currentTimeMillis()) }
+            
+            val player = remember(viewModel) { viewModel.playerEngine.getPlayer() }
+            var isPlaying by remember { mutableStateOf(player.isPlaying) }
+            DisposableEffect(player) {
+                val listener = object : androidx.media3.common.Player.Listener {
+                    override fun onIsPlayingChanged(playing: Boolean) {
+                        isPlaying = playing
+                    }
+                }
+                player.addListener(listener)
+                onDispose {
+                    player.removeListener(listener)
+                }
+            }
+            
+            val isLive = timeBehindLive < 2000L
+            
+            LaunchedEffect(isPlaying, isLive) {
+                while (true) {
+                    val now = System.currentTimeMillis()
+                    if (isPlaying) {
+                        if (isLive) {
+                            timeBehindLive = 0L
+                            playheadTime = now
+                        } else {
+                            playheadTime = now - timeBehindLive
+                        }
+                    } else {
+                        timeBehindLive = now - playheadTime
+                    }
+                    kotlinx.coroutines.delay(1000)
+                }
+            }
+            
+            LaunchedEffect(uiState.playbackState) {
+                timeBehindLive = 0L
+                playheadTime = System.currentTimeMillis()
+            }
+
             // Full Screen Player
             Box(
                 modifier = Modifier
@@ -110,6 +152,11 @@ fun TvMainScreen(viewModel: TvViewModel) {
                                     showGuide = false
                                     true
                                 } else false
+                            } else if (showControls) {
+                                if (keyEvent.key == Key.Back) {
+                                    showControls = false
+                                    true
+                                } else false
                             } else {
                                 when (keyEvent.key) {
                                     Key.DirectionUp -> {
@@ -124,8 +171,8 @@ fun TvMainScreen(viewModel: TvViewModel) {
                                         showSidebar = true
                                         true
                                     }
-                                    Key.DirectionRight, Key.DirectionCenter, Key.Enter -> {
-                                        showGuide = true
+                                    Key.DirectionCenter, Key.Enter -> {
+                                        showControls = true
                                         true
                                     }
                                     Key.Back -> {
@@ -176,9 +223,31 @@ fun TvMainScreen(viewModel: TvViewModel) {
                 )
             }
             
+            // TV player controls overlay
+            if (showControls) {
+                TvPlayerControlsOverlay(
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    timeBehindLive = timeBehindLive,
+                    playheadTime = playheadTime,
+                    isLive = isLive,
+                    onSeekToLive = {
+                        player.seekToDefaultPosition()
+                        player.play()
+                        timeBehindLive = 0L
+                        playheadTime = System.currentTimeMillis()
+                    },
+                    onClosePlayback = {
+                        viewModel.playerEngine.stop()
+                        showControls = false
+                    },
+                    onCloseOverlay = { showControls = false }
+                )
+            }
+            
             // Auto-focus the player Box when overlays are closed
-            LaunchedEffect(showSidebar, showGuide) {
-                if (!showSidebar && !showGuide) {
+            LaunchedEffect(showSidebar, showGuide, showControls) {
+                if (!showSidebar && !showGuide && !showControls) {
                     playerFocusRequester.requestFocus()
                 }
             }
