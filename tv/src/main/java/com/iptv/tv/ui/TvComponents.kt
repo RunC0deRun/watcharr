@@ -22,10 +22,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.res.painterResource
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -335,7 +332,7 @@ fun TvSidebarSwapper(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Star,
+                                painter = painterResource(id = R.drawable.ic_star),
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -382,7 +379,7 @@ fun TvSidebarSwapper(
                             ) {
                                 if (isFav) {
                                     Icon(
-                                        imageVector = Icons.Default.Star,
+                                        painter = painterResource(id = R.drawable.ic_star),
                                         contentDescription = "Favorite",
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(14.dp)
@@ -538,7 +535,7 @@ fun TvEpgGuideOverlay(
                                         ) {
                                             if (isFav) {
                                                 Icon(
-                                                    imageVector = Icons.Default.Star,
+                                                    painter = painterResource(id = R.drawable.ic_star),
                                                     contentDescription = "Favorite",
                                                     tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.size(14.dp)
@@ -1600,7 +1597,7 @@ fun TvChannelsGrid(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Star,
+                                        painter = painterResource(id = R.drawable.ic_star),
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp)
                                     )
@@ -2558,11 +2555,11 @@ fun TvPlayerControlsOverlay(
                         PauseIcon(color = if (isFocused) Color.Black else Color.White)
                     } else {
                         Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = "Play",
-                            tint = if (isFocused) Color.Black else Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
+                             painter = painterResource(id = R.drawable.ic_play_arrow),
+                             contentDescription = "Play",
+                             tint = if (isFocused) Color.Black else Color.White,
+                             modifier = Modifier.size(24.dp)
+                         )
                     }
                 }
                 

@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.iptv.mobile"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.iptv.mobile"
@@ -20,6 +20,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
