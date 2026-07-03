@@ -36,7 +36,6 @@ import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.Duration.Companion.milliseconds
 import java.time.format.DateTimeFormatter
 import java.time.ZoneId
 import java.time.Instant

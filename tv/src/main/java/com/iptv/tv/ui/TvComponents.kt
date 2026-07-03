@@ -711,7 +711,7 @@ fun TvEpgGuideOverlay(
     }
 }
 
-private val timeFormatter get() = DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault())
+private val timeFormatter get() = DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
     .withZone(ZoneId.systemDefault())
 
 private fun formatTimeRange(startMs: Long, stopMs: Long): String {
@@ -1143,10 +1143,10 @@ fun TvTopBar(
 
 data class CarouselItem(val program: ProgramEntity, val channel: ChannelEntity)
 
-private val programDayTimeFormatter get() = DateTimeFormatter.ofPattern("EEE d MMM HH:mm", java.util.Locale.getDefault())
+private val programDayTimeFormatter get() = DateTimeFormatter.ofPattern("EEE d MMM HH:mm", Locale.getDefault())
     .withZone(ZoneId.systemDefault())
 
-private val programDayFormatter get() = DateTimeFormatter.ofPattern("EEE d MMM", java.util.Locale.getDefault())
+private val programDayFormatter get() = DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault())
     .withZone(ZoneId.systemDefault())
 
 private fun formatProgramDayTime(timeMs: Long): String {
