@@ -1,11 +1,13 @@
 package com.iptv.shared.playback
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+@SuppressLint("PrivateApi")
 class CarRestrictionsManager(private val context: Context) {
     private val _isVideoRestricted = MutableStateFlow(false)
     val isVideoRestricted: StateFlow<Boolean> = _isVideoRestricted.asStateFlow()

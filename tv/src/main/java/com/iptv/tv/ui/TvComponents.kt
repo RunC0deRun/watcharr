@@ -26,6 +26,7 @@ import androidx.compose.ui.res.painterResource
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.annotation.SuppressLint
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.foundation.text.KeyboardActions
@@ -192,6 +193,7 @@ fun TvSplashScreen() {
     }
 }
 
+@SuppressLint("InflateParams")
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvVideoPlayer(viewModel: TvViewModel, state: PlaybackState) {
