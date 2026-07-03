@@ -26,7 +26,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
 import com.iptv.mobile.ui.*
-import com.iptv.shared.mvi.IptvUiState
 import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.mvi.PlaybackIntent
 import com.iptv.shared.mvi.PlaybackSideEffect
@@ -42,6 +41,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        
+        if (android.os.Build.VERSION.SDK_INT >= 37) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    this,
+                    "android.permission.ACCESS_LOCAL_NETWORK"
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                androidx.core.app.ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf("android.permission.ACCESS_LOCAL_NETWORK"),
+                    101
+                )
+            }
+        }
         
         setContent {
             val context = LocalContext.current
@@ -140,7 +153,11 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                     PlayerView(ctx).apply {
                         this.player = viewModel.playerEngine.getPlayer()
                         useController = false
+                        keepScreenOn = true
                     }
+                },
+                update = { view ->
+                    view.keepScreenOn = true
                 },
                 modifier = Modifier.fillMaxSize()
             )
@@ -276,7 +293,6 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                             )
                             1 -> MobileFullEpgGuide(
                                 uiState = uiState,
-                                viewModel = viewModel,
                                 onSelectChannel = { channel ->
                                     viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
                                 },

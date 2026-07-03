@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -16,13 +15,14 @@ import androidx.compose.ui.input.key.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.*
 import com.iptv.tv.ui.*
-import com.iptv.shared.mvi.IptvUiState
 import com.iptv.shared.data.db.ChannelEntity
 import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.mvi.PlaybackIntent
 import com.iptv.shared.mvi.PlaybackSideEffect
 import com.iptv.shared.mvi.PlaybackState
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -31,6 +31,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        if (android.os.Build.VERSION.SDK_INT >= 37) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    this,
+                    "android.permission.ACCESS_LOCAL_NETWORK"
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                androidx.core.app.ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf("android.permission.ACCESS_LOCAL_NETWORK"),
+                    101
+                )
+            }
+        }
         
         setContent {
             // Listen to MVI Side Effects
@@ -93,8 +107,8 @@ fun TvMainScreen(viewModel: TvViewModel) {
             .background(MaterialTheme.colorScheme.background)
     ) {
         if (playerActive) {
-            var timeBehindLive by remember { mutableStateOf(0L) }
-            var playheadTime by remember { mutableStateOf(System.currentTimeMillis()) }
+            var timeBehindLive by remember { mutableLongStateOf(0L) }
+            var playheadTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
             
             val player = remember(viewModel) { viewModel.playerEngine.getPlayer() }
             var isPlaying by remember { mutableStateOf(player.isPlaying) }
@@ -125,7 +139,7 @@ fun TvMainScreen(viewModel: TvViewModel) {
                     } else {
                         timeBehindLive = now - playheadTime
                     }
-                    kotlinx.coroutines.delay(1000)
+                    delay(1.seconds)
                 }
             }
             
@@ -228,7 +242,6 @@ fun TvMainScreen(viewModel: TvViewModel) {
                 TvPlayerControlsOverlay(
                     uiState = uiState,
                     viewModel = viewModel,
-                    timeBehindLive = timeBehindLive,
                     playheadTime = playheadTime,
                     isLive = isLive,
                     onSeekToLive = {
@@ -236,10 +249,6 @@ fun TvMainScreen(viewModel: TvViewModel) {
                         player.play()
                         timeBehindLive = 0L
                         playheadTime = System.currentTimeMillis()
-                    },
-                    onClosePlayback = {
-                        viewModel.playerEngine.stop()
-                        showControls = false
                     },
                     onCloseOverlay = { showControls = false }
                 )
@@ -289,7 +298,6 @@ fun TvMainScreen(viewModel: TvViewModel) {
                         TvTab.EPG -> {
                             TvFullEpgGuide(
                                 uiState = uiState,
-                                viewModel = viewModel,
                                 onSelectChannel = {
                                     viewModel.handleIntent(PlaybackIntent.SelectChannel(it))
                                 },

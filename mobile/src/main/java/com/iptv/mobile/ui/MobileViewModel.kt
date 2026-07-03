@@ -3,8 +3,6 @@ package com.iptv.mobile.ui
 import android.app.Application
 import androidx.lifecycle.viewModelScope
 import com.iptv.shared.data.db.ChannelEntity
-import com.iptv.shared.data.db.ProgramEntity
-import com.iptv.shared.data.epg.EpgMatcher
 import com.iptv.shared.mvi.*
 import com.iptv.shared.playback.BaseIptvViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -93,7 +91,7 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
         playerEngine.play(channel)
     }
 
-    override fun _uiStateFavUrls(): Set<String> {
+    override fun uiStateFavUrls(): Set<String> {
         return _uiState.value.favoriteUrls
     }
 

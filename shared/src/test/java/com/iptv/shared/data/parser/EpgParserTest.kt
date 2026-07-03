@@ -90,19 +90,20 @@ class EpgParserTest {
     }
 
     @Test(expected = Exception::class)
-    fun testParseXmltvEPGWithMalformedXml(): Unit = runBlocking {
-        val xmlContent = """
-            <?xml version="1.0" encoding="utf-8"?>
-            <tv>
-              <programme start="20260626200000 +0200" channel="hbo.us">
-                <title lang="en">House of the Dragon
-              </programme>
-            </tv>
-        """.trimIndent()
+    fun testParseXmltvEPGWithMalformedXml() {
+        runBlocking {
+            val xmlContent = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <tv>
+                  <programme start="20260626200000 +0200" channel="hbo.us">
+                    <title lang="en">House of the Dragon
+                  </programme>
+                </tv>
+            """.trimIndent()
 
-        val inputStream = ByteArrayInputStream(xmlContent.toByteArray())
-        // Should throw XmlPullParserException
-        EpgParser.parse(inputStream, isGzip = false).toList()
-        Unit
+            val inputStream = ByteArrayInputStream(xmlContent.toByteArray())
+            // Should throw XmlPullParserException
+            EpgParser.parse(inputStream, isGzip = false).toList()
+        }
     }
 }

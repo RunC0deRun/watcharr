@@ -1,7 +1,5 @@
 package com.iptv.shared.playback
 
-import android.content.Intent
-import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
@@ -9,16 +7,14 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionError
 import com.iptv.shared.data.db.AppDatabase
-import com.iptv.shared.data.db.ChannelEntity
 import com.iptv.shared.data.epg.EpgMatcher
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -73,7 +69,7 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession {
         return mediaLibrarySession
     }
 
@@ -186,7 +182,7 @@ class PlaybackService : MediaLibraryService() {
                     items.addAll(mediaItems)
                     listenable.set(LibraryResult.ofItemList(items, params))
                 } catch (e: Exception) {
-                    listenable.set(LibraryResult.ofError(LibraryResult.RESULT_ERROR_UNKNOWN))
+                    listenable.set(LibraryResult.ofError(SessionError.ERROR_UNKNOWN))
                 }
             }
             return listenable
@@ -204,10 +200,10 @@ class PlaybackService : MediaLibraryService() {
                     if (channel != null) {
                         listenable.set(LibraryResult.ofItem(channel.toMediaItem(), null))
                     } else {
-                        listenable.set(LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE))
+                        listenable.set(LibraryResult.ofError(SessionError.ERROR_BAD_VALUE))
                     }
                 } catch (e: Exception) {
-                    listenable.set(LibraryResult.ofError(LibraryResult.RESULT_ERROR_UNKNOWN))
+                    listenable.set(LibraryResult.ofError(SessionError.ERROR_UNKNOWN))
                 }
             }
             return listenable

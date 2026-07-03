@@ -8,14 +8,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ProgramDao {
-    @Query("SELECT * FROM programs WHERE channelId = :channelId OR channelId = :nameNormalized ORDER BY start ASC")
-    fun getProgramsForChannelFlow(channelId: String, nameNormalized: String): Flow<List<ProgramEntity>>
-
-    @Query("SELECT * FROM programs WHERE (channelId = :channelId OR channelId = :nameNormalized) AND start <= :now AND stop >= :now LIMIT 1")
-    fun getCurrentProgramFlow(channelId: String, nameNormalized: String, now: Long): Flow<ProgramEntity?>
-
-    @Query("SELECT * FROM programs WHERE (channelId = :channelId OR channelId = :nameNormalized) AND start > :now ORDER BY start ASC LIMIT 1")
-    fun getNextProgramFlow(channelId: String, nameNormalized: String, now: Long): Flow<ProgramEntity?>
 
     @Query("SELECT * FROM programs WHERE start <= :now AND stop >= :now")
     fun getActiveProgramsFlow(now: Long): Flow<List<ProgramEntity>>

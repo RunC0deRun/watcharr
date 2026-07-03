@@ -34,9 +34,11 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
+import java.time.format.DateTimeFormatter
+import java.time.ZoneId
+import java.time.Instant
 
 @Composable
 fun WatcharrLogo(modifier: Modifier = Modifier) {
@@ -439,10 +441,12 @@ fun VideoPlayerContainer(
                     PlayerView(ctx).apply {
                         this.player = player
                         useController = true
+                        keepScreenOn = true
                     }
                 },
                 update = { view ->
                     view.player = player
+                    view.keepScreenOn = true
                     view.setFullscreenButtonClickListener { isFullScreen ->
                         onToggleFullscreen()
                     }
@@ -647,12 +651,12 @@ fun ActiveChannelEpgGuide(
     }
 }
 
-private val timeFormatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault())
-    .withZone(java.time.ZoneId.systemDefault())
+private val timeFormatter get() = DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault())
+    .withZone(ZoneId.systemDefault())
 
 fun formatTimeRange(startMs: Long, stopMs: Long): String {
-    val startStr = timeFormatter.format(java.time.Instant.ofEpochMilli(startMs))
-    val stopStr = timeFormatter.format(java.time.Instant.ofEpochMilli(stopMs))
+    val startStr = timeFormatter.format(Instant.ofEpochMilli(startMs))
+    val stopStr = timeFormatter.format(Instant.ofEpochMilli(stopMs))
     return "$startStr - $stopStr"
 }
 
@@ -788,7 +792,8 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                if (manualMode == null) {
+            when (manualMode) {
+                null -> {
                     Text(
                         text = "Manual Setup",
                         style = MaterialTheme.typography.titleLarge,
@@ -816,7 +821,8 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                     ) {
                         Text("Enter Custom URLs")
                     }
-                } else if (manualMode == "dispatcharr") {
+                }
+                "dispatcharr" -> {
                     Text(
                         text = "Dispatcharr Server",
                         style = MaterialTheme.typography.titleLarge,
@@ -851,7 +857,8 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                             Text("Load")
                         }
                     }
-                } else if (manualMode == "custom") {
+                }
+                "custom" -> {
                     Text(
                         text = "Custom URLs",
                         style = MaterialTheme.typography.titleLarge,
@@ -894,6 +901,7 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                         }
                     }
                 }
+            }
             }
         }
         return
@@ -1096,13 +1104,13 @@ fun MobileHeroCarousel(
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var activeIndex by remember { mutableStateOf(0) }
+    var activeIndex by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(carouselItems) {
         activeIndex = 0
         if (carouselItems.size > 1) {
             while (true) {
-                kotlinx.coroutines.delay(5000)
+                delay(5.seconds)
                 activeIndex = (activeIndex + 1) % carouselItems.size
             }
         }
@@ -1543,7 +1551,6 @@ fun MobileChannelsGrid(
 @Composable
 fun MobileFullEpgGuide(
     uiState: IptvUiState,
-    viewModel: MobileViewModel,
     onSelectChannel: (ChannelEntity) -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {

@@ -1,6 +1,5 @@
 package com.iptv.shared.data.parser
 
-import com.iptv.shared.data.db.ChannelEntity
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
