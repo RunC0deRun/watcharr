@@ -26,7 +26,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
 import com.iptv.mobile.ui.*
-import com.iptv.shared.mvi.IptvUiState
 import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.mvi.PlaybackIntent
 import com.iptv.shared.mvi.PlaybackSideEffect

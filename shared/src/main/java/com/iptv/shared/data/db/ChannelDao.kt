@@ -15,9 +15,6 @@ interface ChannelDao {
     @Query("SELECT * FROM channels")
     suspend fun getAllChannels(): List<ChannelEntity>
 
-    @Query("SELECT * FROM channels WHERE groupTitle = :groupTitle")
-    fun getChannelsByGroupFlow(groupTitle: String): Flow<List<ChannelEntity>>
-
     @Query("SELECT DISTINCT groupTitle FROM channels WHERE groupTitle IS NOT NULL AND groupTitle != ''")
     fun getUniqueGroupsFlow(): Flow<List<String>>
 
@@ -26,10 +23,4 @@ interface ChannelDao {
 
     @Query("DELETE FROM channels")
     suspend fun deleteAll()
-
-    @Transaction
-    suspend fun replacePlaylist(channels: List<ChannelEntity>) {
-        deleteAll()
-        insertAll(channels)
-    }
 }

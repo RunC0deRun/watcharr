@@ -34,9 +34,6 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun WatcharrLogo(modifier: Modifier = Modifier) {
@@ -649,7 +646,7 @@ fun ActiveChannelEpgGuide(
     }
 }
 
-private val timeFormatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault())
+private val timeFormatter get() = java.time.format.DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault())
     .withZone(java.time.ZoneId.systemDefault())
 
 fun formatTimeRange(startMs: Long, stopMs: Long): String {
@@ -1098,7 +1095,7 @@ fun MobileHeroCarousel(
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var activeIndex by remember { mutableStateOf(0) }
+    var activeIndex by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(carouselItems) {
         activeIndex = 0

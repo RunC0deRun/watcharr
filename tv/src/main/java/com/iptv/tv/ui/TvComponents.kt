@@ -26,7 +26,6 @@ import androidx.compose.ui.res.painterResource
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.foundation.text.KeyboardActions
@@ -46,7 +45,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -435,7 +433,7 @@ fun TvEpgGuideOverlay(
 
     val focusRequester = remember { FocusRequester() }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.delay(10000)
@@ -707,7 +705,7 @@ fun TvEpgGuideOverlay(
     }
 }
 
-private val timeFormatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault())
+private val timeFormatter get() = java.time.format.DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault())
     .withZone(java.time.ZoneId.systemDefault())
 
 private fun formatTimeRange(startMs: Long, stopMs: Long): String {
@@ -1137,10 +1135,10 @@ fun TvTopBar(
 
 data class CarouselItem(val program: ProgramEntity, val channel: ChannelEntity)
 
-private val programDayTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM HH:mm", java.util.Locale.getDefault())
+private val programDayTimeFormatter get() = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM HH:mm", java.util.Locale.getDefault())
     .withZone(java.time.ZoneId.systemDefault())
 
-private val programDayFormatter = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", java.util.Locale.getDefault())
+private val programDayFormatter get() = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", java.util.Locale.getDefault())
     .withZone(java.time.ZoneId.systemDefault())
 
 private fun formatProgramDayTime(timeMs: Long): String {
@@ -1154,7 +1152,7 @@ fun TvHeroCarousel(
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var activeIndex by remember { mutableStateOf(0) }
+    var activeIndex by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(carouselItems) {
         activeIndex = 0
@@ -1306,7 +1304,7 @@ fun TvNowLiveRow(
     firstVisibleIndex: Int = 0,
     firstItemFocusRequester: FocusRequester? = null
 ) {
-    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.delay(10000)

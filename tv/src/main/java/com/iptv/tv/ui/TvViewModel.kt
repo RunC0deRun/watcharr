@@ -3,11 +3,8 @@ package com.iptv.tv.ui
 import android.app.Application
 import androidx.lifecycle.viewModelScope
 import com.iptv.shared.data.db.ChannelEntity
-import com.iptv.shared.data.db.ProgramEntity
-import com.iptv.shared.data.epg.EpgMatcher
 import com.iptv.shared.mvi.*
 import com.iptv.shared.playback.BaseIptvViewModel
-import com.iptv.tv.TvApp
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,8 +14,6 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TvViewModel(application: Application) : BaseIptvViewModel(application) {
-
-    private val app = application as TvApp
 
     private val _uiState = MutableStateFlow(IptvUiState())
     val uiState: StateFlow<IptvUiState> = _uiState.asStateFlow()

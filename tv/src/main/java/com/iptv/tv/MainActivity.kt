@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -16,7 +15,6 @@ import androidx.compose.ui.input.key.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.*
 import com.iptv.tv.ui.*
-import com.iptv.shared.mvi.IptvUiState
 import com.iptv.shared.data.db.ChannelEntity
 import com.iptv.shared.data.db.ProgramEntity
 import com.iptv.shared.mvi.PlaybackIntent
@@ -107,8 +105,8 @@ fun TvMainScreen(viewModel: TvViewModel) {
             .background(MaterialTheme.colorScheme.background)
     ) {
         if (playerActive) {
-            var timeBehindLive by remember { mutableStateOf(0L) }
-            var playheadTime by remember { mutableStateOf(System.currentTimeMillis()) }
+            var timeBehindLive by remember { mutableLongStateOf(0L) }
+            var playheadTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
             
             val player = remember(viewModel) { viewModel.playerEngine.getPlayer() }
             var isPlaying by remember { mutableStateOf(player.isPlaying) }

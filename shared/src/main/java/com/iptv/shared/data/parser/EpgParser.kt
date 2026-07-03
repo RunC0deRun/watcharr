@@ -28,8 +28,8 @@ object EpgParser {
 
         var eventType = parser.eventType
         var currentChannelId: String? = null
-        var currentStart: Long = 0L
-        var currentStop: Long = 0L
+        var currentStart = 0L
+        var currentStop = 0L
         var currentTitle: String? = null
         var currentDesc: String? = null
         var currentIconUrl: String? = null
