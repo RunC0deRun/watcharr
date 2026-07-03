@@ -20,9 +20,12 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 import java.net.URL
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("PropertyName")
 open class BaseIptvViewModel(application: Application) : AndroidViewModel(application) {
 
     protected val database = AppDatabase.getDatabase(application)
@@ -90,7 +93,7 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
     private val nowFlow = flow {
         while (true) {
             emit(System.currentTimeMillis())
-            kotlinx.coroutines.delay(30000)
+            delay(30.seconds)
         }
     }
 
@@ -184,7 +187,7 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
     fun toggleFavorite(channelUrl: String) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                if (_uiStateFavUrls().contains(channelUrl)) {
+                if (uiStateFavUrls().contains(channelUrl)) {
                     favoriteDao.delete(channelUrl)
                 } else {
                     favoriteDao.insert(FavoriteEntity(channelUrl))
@@ -193,7 +196,7 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    open fun _uiStateFavUrls(): Set<String> {
+    open fun uiStateFavUrls(): Set<String> {
         return emptySet()
     }
 

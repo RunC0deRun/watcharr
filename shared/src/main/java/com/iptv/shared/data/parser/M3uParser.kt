@@ -30,20 +30,17 @@ object M3uParser {
                     currentMetadata = parsed.first
                     currentName = parsed.second
                 } else if (!trimmedLine.startsWith("#")) {
-                    if (currentName != null) {
-                        val url = trimmedLine
-                        if (url.isNotEmpty()) {
-                            emit(
-                                ChannelEntity(
-                                    name = currentName,
-                                    url = url,
-                                    tvgId = currentMetadata?.get("tvg-id"),
-                                    tvgName = currentMetadata?.get("tvg-name"),
-                                    logoUrl = currentMetadata?.get("tvg-logo"),
-                                    groupTitle = currentMetadata?.get("group-title")
-                                )
+                    if (currentName != null && trimmedLine.isNotEmpty()) {
+                        emit(
+                            ChannelEntity(
+                                name = currentName,
+                                url = trimmedLine,
+                                tvgId = currentMetadata?.get("tvg-id"),
+                                tvgName = currentMetadata?.get("tvg-name"),
+                                logoUrl = currentMetadata?.get("tvg-logo"),
+                                groupTitle = currentMetadata?.get("group-title")
                             )
-                        }
+                        )
                         currentMetadata = null
                         currentName = null
                     }

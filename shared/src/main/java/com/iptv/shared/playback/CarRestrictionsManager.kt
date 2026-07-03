@@ -37,7 +37,7 @@ class CarRestrictionsManager(private val context: Context) {
             uxRestrictionsManager = uxManagerObj
 
             // Register listener
-            val uxListenerClass = Class.forName("android.car.drivingstate.CarUxRestrictionsManager\$OnUxRestrictionsChangedListener")
+            val uxListenerClass = Class.forName("android.car.drivingstate.CarUxRestrictionsManager" + '$' + "OnUxRestrictionsChangedListener")
             val registerListenerMethod = uxManagerObj.javaClass.getMethod(
                 "registerListener",
                 uxListenerClass

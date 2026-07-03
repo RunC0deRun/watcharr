@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.time.Duration.Companion.milliseconds
+import androidx.core.net.toUri
 
 @OptIn(UnstableApi::class)
 class PlayerEngine(private val context: Context) {
@@ -99,7 +102,7 @@ class PlayerEngine(private val context: Context) {
             val finalUrl = resolveRedirect(channel.url)
             android.util.Log.d("Watcharr", "Resolved play URL: $finalUrl")
             
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            withContext(Dispatchers.Main) {
                 val player = getPlayer()
                 val mediaItemBuilder = MediaItem.Builder()
                     .setUri(finalUrl)
@@ -115,7 +118,7 @@ class PlayerEngine(private val context: Context) {
                 if (finalUrl.contains("/live/")) {
                     mediaItemBuilder.setMimeType("application/dash+xml")
                     try {
-                        val uri = android.net.Uri.parse(finalUrl)
+                        val uri = finalUrl.toUri()
                         val pathSegments = uri.pathSegments
                         val liveIndex = pathSegments.indexOf("live")
                         if (liveIndex != -1 && liveIndex + 1 < pathSegments.size) {
@@ -165,7 +168,7 @@ class PlayerEngine(private val context: Context) {
         retryJob = scope.launch {
             retryAttempt++
             val backoffMs = retryAttempt * RETRY_BASE_DELAY_MS
-            delay(backoffMs)
+            delay(backoffMs.milliseconds)
             play(channel)
         }
     }
@@ -230,7 +233,7 @@ class PlayerEngine(private val context: Context) {
     }
 
     private suspend fun resolveRedirect(urlStr: String): String {
-        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        return withContext(Dispatchers.IO) {
             try {
                 val url = java.net.URL(urlStr)
                 val conn = url.openConnection() as java.net.HttpURLConnection

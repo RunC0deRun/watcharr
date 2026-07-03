@@ -36,6 +36,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
+import java.time.format.DateTimeFormatter
+import java.time.ZoneId
+import java.time.Instant
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -436,7 +442,7 @@ fun TvEpgGuideOverlay(
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
-            kotlinx.coroutines.delay(10000)
+            delay(10.seconds)
             now = System.currentTimeMillis()
         }
     }
@@ -705,12 +711,12 @@ fun TvEpgGuideOverlay(
     }
 }
 
-private val timeFormatter get() = java.time.format.DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault())
-    .withZone(java.time.ZoneId.systemDefault())
+private val timeFormatter get() = DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.getDefault())
+    .withZone(ZoneId.systemDefault())
 
 private fun formatTimeRange(startMs: Long, stopMs: Long): String {
-    val startStr = timeFormatter.format(java.time.Instant.ofEpochMilli(startMs))
-    val stopStr = timeFormatter.format(java.time.Instant.ofEpochMilli(stopMs))
+    val startStr = timeFormatter.format(Instant.ofEpochMilli(startMs))
+    val stopStr = timeFormatter.format(Instant.ofEpochMilli(stopMs))
     return "$startStr - $stopStr"
 }
 
@@ -729,12 +735,10 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
     val saveButtonFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(manualMode) {
-        if (manualMode == null) {
-            defaultFocusRequester.requestFocus()
-        } else if (manualMode == "dispatcharr") {
-            dispatcharrFocusRequester.requestFocus()
-        } else if (manualMode == "custom") {
-            customFocusRequester.requestFocus()
+        when (manualMode) {
+            null -> defaultFocusRequester.requestFocus()
+            "dispatcharr" -> dispatcharrFocusRequester.requestFocus()
+            "custom" -> customFocusRequester.requestFocus()
         }
     }
 
@@ -801,178 +805,182 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (manualMode == null) {
-                Text(
-                    text = "Manual Setup",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Configure your server connection or URLs directly on this device.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.secondary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Button(
-                    onClick = { manualMode = "dispatcharr" },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(defaultFocusRequester)
-                ) {
-                    Text("Use Dispatcharr Server")
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = { manualMode = "custom" },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Enter Custom URLs")
-                }
-            } else if (manualMode == "dispatcharr") {
-                Text(
-                    text = "Dispatcharr Server",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = dispatcharrUrlInput,
-                    onValueChange = { dispatcharrUrlInput = it },
-                    label = { Text("Server URL") },
-                    placeholder = { Text("http://192.168.1.100:8080") },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(dispatcharrFocusRequester)
-                        .focusProperties {
-                            down = connectButtonFocusRequester
-                        },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = {
-                        connectButtonFocusRequester.requestFocus()
-                    }),
-                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
+            when (manualMode) {
+                null -> {
+                    Text(
+                        text = "Manual Setup",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Configure your server connection or URLs directly on this device.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                Spacer(modifier = Modifier.height(20.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
                     Button(
-                        onClick = {
-                            if (dispatcharrUrlInput.isNotEmpty()) {
-                                val m3u = "$dispatcharrUrlInput/output/m3u"
-                                val epg = "$dispatcharrUrlInput/output/epg"
-                                viewModel.saveConfigAndCompleteOnboarding(m3u, epg, dispatcharrUrlInput, true)
-                            }
-                        },
+                        onClick = { manualMode = "dispatcharr" },
                         modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(connectButtonFocusRequester)
+                            .fillMaxWidth()
+                            .focusRequester(defaultFocusRequester)
                     ) {
-                        Text("Connect")
+                        Text("Use Dispatcharr Server")
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
                     Button(
-                        onClick = { manualMode = null },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
-                            focusedContainerColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        onClick = { manualMode = "custom" },
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Back")
+                        Text("Enter Custom URLs")
                     }
                 }
-            } else if (manualMode == "custom") {
-                Text(
-                    text = "Custom URLs",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = playlistUrlInput,
-                    onValueChange = { playlistUrlInput = it },
-                    label = { Text("M3U Playlist URL") },
-                    placeholder = { Text("http://...") },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(customFocusRequester),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                "dispatcharr" -> {
+                    Text(
+                        text = "Dispatcharr Server",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                )
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = epgUrlInput,
-                    onValueChange = { epgUrlInput = it },
-                    label = { Text("EPG XMLTV URL (Optional)") },
-                    placeholder = { Text("http://...") },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusProperties {
-                            down = saveButtonFocusRequester
-                        },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = {
-                        saveButtonFocusRequester.requestFocus()
-                    }),
-                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            if (playlistUrlInput.isNotEmpty()) {
-                                viewModel.saveConfigAndCompleteOnboarding(playlistUrlInput, epgUrlInput, null, false)
-                            }
-                        },
+                    OutlinedTextField(
+                        value = dispatcharrUrlInput,
+                        onValueChange = { dispatcharrUrlInput = it },
+                        label = { Text("Server URL") },
+                        placeholder = { Text("http://192.168.1.100:8080") },
+                        singleLine = true,
                         modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(saveButtonFocusRequester)
-                    ) {
-                        Text("Save & Load")
-                    }
-                    Button(
-                        onClick = { manualMode = null },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
-                            focusedContainerColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            .fillMaxWidth()
+                            .focusRequester(dispatcharrFocusRequester)
+                            .focusProperties {
+                                down = connectButtonFocusRequester
+                            },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            connectButtonFocusRequester.requestFocus()
+                        }),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Back")
+                        Button(
+                            onClick = {
+                                if (dispatcharrUrlInput.isNotEmpty()) {
+                                    val m3u = "$dispatcharrUrlInput/output/m3u"
+                                    val epg = "$dispatcharrUrlInput/output/epg"
+                                    viewModel.saveConfigAndCompleteOnboarding(m3u, epg, dispatcharrUrlInput, true)
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(connectButtonFocusRequester)
+                        ) {
+                            Text("Connect")
+                        }
+                        Button(
+                            onClick = { manualMode = null },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.colors(
+                                containerColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                focusedContainerColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Text("Back")
+                        }
+                    }
+                }
+                "custom" -> {
+                    Text(
+                        text = "Custom URLs",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = playlistUrlInput,
+                        onValueChange = { playlistUrlInput = it },
+                        label = { Text("M3U Playlist URL") },
+                        placeholder = { Text("http://...") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(customFocusRequester),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = epgUrlInput,
+                        onValueChange = { epgUrlInput = it },
+                        label = { Text("EPG XMLTV URL (Optional)") },
+                        placeholder = { Text("http://...") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusProperties {
+                                down = saveButtonFocusRequester
+                            },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            saveButtonFocusRequester.requestFocus()
+                        }),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                if (playlistUrlInput.isNotEmpty()) {
+                                    viewModel.saveConfigAndCompleteOnboarding(playlistUrlInput, epgUrlInput, null, false)
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(saveButtonFocusRequester)
+                        ) {
+                            Text("Save & Load")
+                        }
+                        Button(
+                            onClick = { manualMode = null },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.colors(
+                                containerColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                focusedContainerColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        ) {
+                            Text("Back")
+                        }
                     }
                 }
             }
@@ -1135,14 +1143,14 @@ fun TvTopBar(
 
 data class CarouselItem(val program: ProgramEntity, val channel: ChannelEntity)
 
-private val programDayTimeFormatter get() = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM HH:mm", java.util.Locale.getDefault())
-    .withZone(java.time.ZoneId.systemDefault())
+private val programDayTimeFormatter get() = DateTimeFormatter.ofPattern("EEE d MMM HH:mm", java.util.Locale.getDefault())
+    .withZone(ZoneId.systemDefault())
 
-private val programDayFormatter get() = java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", java.util.Locale.getDefault())
-    .withZone(java.time.ZoneId.systemDefault())
+private val programDayFormatter get() = DateTimeFormatter.ofPattern("EEE d MMM", java.util.Locale.getDefault())
+    .withZone(ZoneId.systemDefault())
 
 private fun formatProgramDayTime(timeMs: Long): String {
-    return programDayTimeFormatter.format(java.time.Instant.ofEpochMilli(timeMs))
+    return programDayTimeFormatter.format(Instant.ofEpochMilli(timeMs))
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -1158,7 +1166,7 @@ fun TvHeroCarousel(
         activeIndex = 0
         if (carouselItems.size > 1) {
             while (true) {
-                kotlinx.coroutines.delay(5000)
+                delay(5.seconds)
                 activeIndex = (activeIndex + 1) % carouselItems.size
             }
         }
@@ -1307,7 +1315,7 @@ fun TvNowLiveRow(
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
-            kotlinx.coroutines.delay(10000)
+            delay(10.seconds)
             now = System.currentTimeMillis()
         }
     }
@@ -1725,7 +1733,6 @@ fun TvChannelGridItem(
 @Composable
 fun TvFullEpgGuide(
     uiState: IptvUiState,
-    viewModel: TvViewModel,
     onSelectChannel: (ChannelEntity) -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {
@@ -2226,7 +2233,7 @@ fun TvProgramDetailScreen(
             val durationMin = (program.stop - program.start) / 60000
             val dateStr = remember(program.start) {
                 try {
-                    programDayFormatter.format(java.time.Instant.ofEpochMilli(program.start))
+                    programDayFormatter.format(Instant.ofEpochMilli(program.start))
                 } catch (e: Exception) {
                     ""
                 }
@@ -2330,11 +2337,9 @@ fun TvPlayerCircularButton(
 fun TvPlayerControlsOverlay(
     uiState: IptvUiState,
     viewModel: TvViewModel,
-    timeBehindLive: Long,
     playheadTime: Long,
     isLive: Boolean,
     onSeekToLive: () -> Unit,
-    onClosePlayback: () -> Unit,
     onCloseOverlay: () -> Unit
 ) {
     BackHandler(onBack = onCloseOverlay)
@@ -2369,7 +2374,7 @@ fun TvPlayerControlsOverlay(
     var userActivityTrigger by remember { mutableStateOf(0) }
     
     LaunchedEffect(userActivityTrigger) {
-        kotlinx.coroutines.delay(5000)
+        delay(5.seconds)
         onCloseOverlay()
     }
     
@@ -2396,7 +2401,7 @@ fun TvPlayerControlsOverlay(
     val playPauseFocusRequester = remember { FocusRequester() }
     val liveBadgeFocusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(100)
+        delay(100.milliseconds)
         playPauseFocusRequester.requestFocus()
     }
     

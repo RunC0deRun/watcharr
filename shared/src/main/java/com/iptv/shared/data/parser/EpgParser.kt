@@ -37,19 +37,17 @@ object EpgParser {
         while (eventType != XmlPullParser.END_DOCUMENT) {
             when (eventType) {
                 XmlPullParser.START_TAG -> {
-                    val name = parser.name
-                    if (name == "programme") {
-                        currentChannelId = parser.getAttributeValue(null, "channel")
-                        val startStr = parser.getAttributeValue(null, "start")
-                        val stopStr = parser.getAttributeValue(null, "stop")
-                        currentStart = if (startStr != null) parseXmltvDate(startStr) else 0L
-                        currentStop = if (stopStr != null) parseXmltvDate(stopStr) else 0L
-                    } else if (name == "title" && currentChannelId != null) {
-                        currentTitle = parser.nextText()
-                    } else if (name == "desc" && currentChannelId != null) {
-                        currentDesc = parser.nextText()
-                    } else if (name == "icon" && currentChannelId != null) {
-                        currentIconUrl = parser.getAttributeValue(null, "src")
+                    when (parser.name) {
+                        "programme" -> {
+                            currentChannelId = parser.getAttributeValue(null, "channel")
+                            val startStr = parser.getAttributeValue(null, "start")
+                            val stopStr = parser.getAttributeValue(null, "stop")
+                            currentStart = if (startStr != null) parseXmltvDate(startStr) else 0L
+                            currentStop = if (stopStr != null) parseXmltvDate(stopStr) else 0L
+                        }
+                        "title" -> if (currentChannelId != null) currentTitle = parser.nextText()
+                        "desc" -> if (currentChannelId != null) currentDesc = parser.nextText()
+                        "icon" -> if (currentChannelId != null) currentIconUrl = parser.getAttributeValue(null, "src")
                     }
                 }
                 XmlPullParser.END_TAG -> {

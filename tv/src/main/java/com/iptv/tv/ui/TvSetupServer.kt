@@ -47,7 +47,7 @@ class TvSetupServer(private val onConfigReceived: (m3uUrl: String, epgUrl: Strin
                                 // Read HTTP headers
                                 var contentLength = 0
                                 var line: String?
-                                while (reader.readLine().also { line = it } != null) {
+                                while (reader.readLine().also { lineStr -> line = lineStr } != null) {
                                     if (line!!.isEmpty()) break
                                     if (line!!.startsWith("Content-Length:", ignoreCase = true)) {
                                         contentLength = line!!.substringAfter(":").trim().toIntOrNull() ?: 0

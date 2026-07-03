@@ -293,7 +293,6 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                             )
                             1 -> MobileFullEpgGuide(
                                 uiState = uiState,
-                                viewModel = viewModel,
                                 onSelectChannel = { channel ->
                                     viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
                                 },

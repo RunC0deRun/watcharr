@@ -21,6 +21,8 @@ import com.iptv.shared.mvi.PlaybackIntent
 import com.iptv.shared.mvi.PlaybackSideEffect
 import com.iptv.shared.mvi.PlaybackState
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 class MainActivity : ComponentActivity() {
@@ -137,7 +139,7 @@ fun TvMainScreen(viewModel: TvViewModel) {
                     } else {
                         timeBehindLive = now - playheadTime
                     }
-                    kotlinx.coroutines.delay(1000)
+                    delay(1.seconds)
                 }
             }
             
@@ -240,7 +242,6 @@ fun TvMainScreen(viewModel: TvViewModel) {
                 TvPlayerControlsOverlay(
                     uiState = uiState,
                     viewModel = viewModel,
-                    timeBehindLive = timeBehindLive,
                     playheadTime = playheadTime,
                     isLive = isLive,
                     onSeekToLive = {
@@ -248,10 +249,6 @@ fun TvMainScreen(viewModel: TvViewModel) {
                         player.play()
                         timeBehindLive = 0L
                         playheadTime = System.currentTimeMillis()
-                    },
-                    onClosePlayback = {
-                        viewModel.playerEngine.stop()
-                        showControls = false
                     },
                     onCloseOverlay = { showControls = false }
                 )
@@ -301,7 +298,6 @@ fun TvMainScreen(viewModel: TvViewModel) {
                         TvTab.EPG -> {
                             TvFullEpgGuide(
                                 uiState = uiState,
-                                viewModel = viewModel,
                                 onSelectChannel = {
                                     viewModel.handleIntent(PlaybackIntent.SelectChannel(it))
                                 },

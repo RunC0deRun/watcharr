@@ -91,7 +91,7 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
         playerEngine.play(channel)
     }
 
-    override fun _uiStateFavUrls(): Set<String> {
+    override fun uiStateFavUrls(): Set<String> {
         return _uiState.value.favoriteUrls
     }
 
