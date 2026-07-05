@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.iptv.mobile"
+    namespace = "io.github.RunC0deRun.mobile"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.iptv.mobile"
+        applicationId = "io.github.RunC0deRun.mobile"
         minSdk = 26
         targetSdk = 37
         versionCode = 1

@@ -43,7 +43,7 @@
         </activity>
 
         <service
-            android:name="com.iptv.shared.playback.PlaybackService"
+            android:name="io.github.RunC0deRun.shared.playback.PlaybackService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="true"
             tools:ignore="ExportedService">

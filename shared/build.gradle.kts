@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.iptv.shared"
+    namespace = "io.github.RunC0deRun.shared"
     compileSdk = 37
 
     defaultConfig {

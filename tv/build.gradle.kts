@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.iptv.tv"
+    namespace = "io.github.RunC0deRun.tv"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.iptv.tv"
+        applicationId = "io.github.RunC0deRun.tv"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
