@@ -52,7 +52,10 @@ object StreamStatsHelper {
             }
         }
 
-        val resStr = if (videoWidth > 0 && videoHeight > 0) "${videoWidth}x${videoHeight}" else "N/A"
+        val videoSize = player.videoSize
+        val actualWidth = if (videoSize.width > 0) videoSize.width else videoWidth
+        val actualHeight = if (videoSize.height > 0) videoSize.height else videoHeight
+        val resStr = if (actualWidth > 0 && actualHeight > 0) "${actualWidth}x${actualHeight}" else "N/A"
         val fpsStr = if (frameRate > 0) "%.2f fps".format(frameRate) else "N/A"
         val vBitrateStr = if (videoBitrate > 0) "%.2f Mbps".format(videoBitrate / 1_000_000.0) else "N/A"
         val aBitrateStr = if (audioBitrate > 0) "${audioBitrate / 1000} kbps" else "N/A"
