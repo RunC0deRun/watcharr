@@ -427,6 +427,8 @@ fun VideoPlayerContainer(
 ) {
     val player = remember(viewModel) { viewModel.playerEngine.getPlayer() }
     val isRestricted = (state is PlaybackState.Playing && state.isVideoRestricted)
+    var areControlsVisible by remember { mutableStateOf(false) }
+    var showStats by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -442,6 +444,9 @@ fun VideoPlayerContainer(
                         this.player = player
                         useController = true
                         keepScreenOn = true
+                        setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+                            areControlsVisible = visibility == android.view.View.VISIBLE
+                        })
                     }
                 },
                 update = { view ->
@@ -517,6 +522,43 @@ fun VideoPlayerContainer(
                 }
             }
             else -> {}
+        }
+
+        if (state is PlaybackState.Playing && !isRestricted) {
+            if (areControlsVisible) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.TopEnd
+                ) {
+                    IconButton(
+                        onClick = { showStats = !showStats },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_stats),
+                            contentDescription = "Stats",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+
+            if (showStats) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.TopStart
+                ) {
+                    MobilePlayerStatsOverlay(
+                        player = player,
+                        onClose = { showStats = false }
+                    )
+                }
+            }
         }
     }
 }
@@ -1880,4 +1922,90 @@ fun MobileSettingsPanel(
         }
     }
 }
+
+@Composable
+fun MobilePlayerStatsOverlay(
+    player: androidx.media3.exoplayer.ExoPlayer,
+    onClose: () -> Unit
+) {
+    var stats by remember { mutableStateOf<io.github.RunC0deRun.shared.playback.StreamStats?>(null) }
+
+    LaunchedEffect(player) {
+        while (true) {
+            stats = io.github.RunC0deRun.shared.playback.StreamStatsHelper.getStreamStats(player)
+            delay(1.seconds)
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .padding(16.dp)
+            .width(280.dp)
+            .clickable { onClose() },
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Black.copy(alpha = 0.8f),
+            contentColor = Color.White
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Stream Stats",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Tap to close",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.5f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            stats?.let { s ->
+                MobileStatsRow(label = "Resolution", value = s.resolution)
+                MobileStatsRow(label = "Frame Rate", value = s.frameRate)
+                MobileStatsRow(label = "Video Codec", value = s.videoCodec)
+                MobileStatsRow(label = "Video Bitrate", value = s.videoBitrate)
+                MobileStatsRow(label = "Audio Codec", value = s.audioCodec)
+                MobileStatsRow(label = "Audio Bitrate", value = s.audioBitrate)
+                MobileStatsRow(label = "Audio Channels", value = s.audioChannels)
+                MobileStatsRow(label = "Sample Rate", value = s.audioSampleRate)
+                MobileStatsRow(label = "Buffer Ahead", value = s.bufferAhead)
+            } ?: run {
+                Text("Loading stream info...", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+@Composable
+fun MobileStatsRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = 0.6f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+}
+
 
