@@ -88,6 +88,7 @@ fun TvMainScreen(viewModel: TvViewModel) {
     var showSidebar by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(false) }
+    var showStats by remember { mutableStateOf(false) }
     var selectedProgramForDetail by remember { mutableStateOf<ProgramEntity?>(null) }
     var selectedChannelForDetail by remember { mutableStateOf<ChannelEntity?>(null) }
 
@@ -171,6 +172,11 @@ fun TvMainScreen(viewModel: TvViewModel) {
                                     showControls = false
                                     true
                                 } else false
+                            } else if (showStats) {
+                                if (keyEvent.key == Key.Back) {
+                                    showStats = false
+                                    true
+                                } else false
                             } else {
                                 when (keyEvent.key) {
                                     Key.DirectionUp -> {
@@ -250,13 +256,25 @@ fun TvMainScreen(viewModel: TvViewModel) {
                         timeBehindLive = 0L
                         playheadTime = System.currentTimeMillis()
                     },
-                    onCloseOverlay = { showControls = false }
+                    onCloseOverlay = { showControls = false },
+                    onShowStats = {
+                        showStats = true
+                        showControls = false
+                    }
+                )
+            }
+
+            // TV player stats overlay
+            if (showStats) {
+                TvPlayerStatsOverlay(
+                    viewModel = viewModel,
+                    onClose = { showStats = false }
                 )
             }
             
             // Auto-focus the player Box when overlays are closed
-            LaunchedEffect(showSidebar, showGuide, showControls) {
-                if (!showSidebar && !showGuide && !showControls) {
+            LaunchedEffect(showSidebar, showGuide, showControls, showStats) {
+                if (!showSidebar && !showGuide && !showControls && !showStats) {
                     playerFocusRequester.requestFocus()
                 }
             }

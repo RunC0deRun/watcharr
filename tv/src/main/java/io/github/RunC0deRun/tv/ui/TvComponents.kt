@@ -2342,7 +2342,8 @@ fun TvPlayerControlsOverlay(
     playheadTime: Long,
     isLive: Boolean,
     onSeekToLive: () -> Unit,
-    onCloseOverlay: () -> Unit
+    onCloseOverlay: () -> Unit,
+    onShowStats: () -> Unit
 ) {
     BackHandler(onBack = onCloseOverlay)
     
@@ -2401,6 +2402,7 @@ fun TvPlayerControlsOverlay(
     
     val closeFocusRequester = remember { FocusRequester() }
     val playPauseFocusRequester = remember { FocusRequester() }
+    val statsFocusRequester = remember { FocusRequester() }
     val liveBadgeFocusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         delay(100.milliseconds)
@@ -2555,9 +2557,7 @@ fun TvPlayerControlsOverlay(
                     focusRequester = playPauseFocusRequester,
                     modifier = Modifier.focusProperties {
                         up = closeFocusRequester
-                        if (!isLive) {
-                            right = liveBadgeFocusRequester
-                        }
+                        right = statsFocusRequester
                     }
                 ) { isFocused ->
                     if (isPlaying) {
@@ -2570,6 +2570,26 @@ fun TvPlayerControlsOverlay(
                              modifier = Modifier.size(24.dp)
                          )
                     }
+                }
+
+                // Stats Button
+                TvPlayerCircularButton(
+                    onClick = onShowStats,
+                    focusRequester = statsFocusRequester,
+                    modifier = Modifier.focusProperties {
+                        up = closeFocusRequester
+                        left = playPauseFocusRequester
+                        if (!isLive) {
+                            right = liveBadgeFocusRequester
+                        }
+                    }
+                ) { isFocused ->
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_stats),
+                        contentDescription = "Stats",
+                        tint = if (isFocused) Color.Black else Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 
                 // Progress Bar
@@ -2624,7 +2644,7 @@ fun TvPlayerControlsOverlay(
                                     }
                                     .focusProperties {
                                         up = closeFocusRequester
-                                        left = playPauseFocusRequester
+                                        left = statsFocusRequester
                                     }
                             } else {
                                 Modifier
@@ -2665,4 +2685,108 @@ fun TvPlayerControlsOverlay(
         }
     }
 }
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun TvPlayerStatsOverlay(
+    viewModel: TvViewModel,
+    onClose: () -> Unit
+) {
+    BackHandler(onBack = onClose)
+
+    val player = remember(viewModel) { viewModel.playerEngine.getPlayer() }
+    var stats by remember { mutableStateOf<io.github.RunC0deRun.shared.playback.StreamStats?>(null) }
+
+    LaunchedEffect(player) {
+        while (true) {
+            stats = io.github.RunC0deRun.shared.playback.StreamStatsHelper.getStreamStats(player)
+            delay(1.seconds)
+        }
+    }
+
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Transparent)
+            .padding(24.dp),
+        contentAlignment = Alignment.TopEnd
+    ) {
+        Card(
+            onClick = onClose,
+            modifier = Modifier
+                .width(360.dp)
+                .focusRequester(focusRequester)
+                .focusable(),
+            colors = CardDefaults.colors(
+                containerColor = Color.Black.copy(alpha = 0.8f),
+                contentColor = Color.White
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Stream Stats",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE91E63)
+                    )
+                    Text(
+                        text = "Press BACK to close",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.5f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                stats?.let { s ->
+                    StatsRow(label = "Resolution", value = s.resolution)
+                    StatsRow(label = "Frame Rate", value = s.frameRate)
+                    StatsRow(label = "Video Codec", value = s.videoCodec)
+                    StatsRow(label = "Video Bitrate", value = s.videoBitrate)
+                    StatsRow(label = "Audio Codec", value = s.audioCodec)
+                    StatsRow(label = "Audio Bitrate", value = s.audioBitrate)
+                    StatsRow(label = "Audio Channels", value = s.audioChannels)
+                    StatsRow(label = "Sample Rate", value = s.audioSampleRate)
+                    StatsRow(label = "Buffer Ahead", value = s.bufferAhead)
+                } ?: run {
+                    Text("Loading stream info...", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StatsRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.6f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+}
+
 
