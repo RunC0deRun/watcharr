@@ -427,6 +427,8 @@ fun VideoPlayerContainer(
 ) {
     val player = remember(viewModel) { viewModel.playerEngine.getPlayer() }
     val isRestricted = (state is PlaybackState.Playing && state.isVideoRestricted)
+    var areControlsVisible by remember { mutableStateOf(false) }
+    var showStats by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -442,6 +444,9 @@ fun VideoPlayerContainer(
                         this.player = player
                         useController = true
                         keepScreenOn = true
+                        setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+                            areControlsVisible = visibility == android.view.View.VISIBLE
+                        })
                     }
                 },
                 update = { view ->
@@ -520,26 +525,26 @@ fun VideoPlayerContainer(
         }
 
         if (state is PlaybackState.Playing && !isRestricted) {
-            var showStats by remember { mutableStateOf(false) }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                contentAlignment = Alignment.TopEnd
-            ) {
-                IconButton(
-                    onClick = { showStats = !showStats },
+            if (areControlsVisible) {
+                Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.TopEnd
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_stats),
-                        contentDescription = "Stats",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    IconButton(
+                        onClick = { showStats = !showStats },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_stats),
+                            contentDescription = "Stats",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 
