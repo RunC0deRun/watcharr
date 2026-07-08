@@ -44,6 +44,12 @@ watcharr/
 
 ---
 
+## 📖 Documentation
+
+*   [Stream Metadata Guidelines](docs/STREAM_METADATA.md): Detailed information on structuring HLS/DASH manifest tags and media elementary stream properties so that Watcharr can display correct and complete stream statistics.
+
+---
+
 ## 📦 Building and Running
 
 ### Prerequisites
@@ -84,3 +90,10 @@ This project is co-developed with **Gemini**. When committing changes, please en
 ```
 Co-authored-by: Gemini <gemini@google.com>
 ```
+
+---
+
+## 📄 License
+
+This project is licensed under the terms of the LICENSE file.
+
