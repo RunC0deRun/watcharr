@@ -58,11 +58,11 @@ For DASH streams, ExoPlayer maps XML representation attributes to the format par
 Inside the `.mpd` manifest file, ensure the `<Representation>` tag for each adaptation set specifies the properties:
 
 ```xml
-<AdaptationSet mimeType="video/mp4" ...>
+<AdaptationSet mimeType="video/mp4">
   <Representation id="1" codecs="avc1.64002a" width="1920" height="1080" frameRate="60" bandwidth="4000000" />
 </AdaptationSet>
 
-<AdaptationSet mimeType="audio/mp4" ...>
+<AdaptationSet mimeType="audio/mp4">
   <Representation id="2" codecs="mp4a.40.2" audioSamplingRate="48000" bandwidth="192000">
     <AudioChannelConfiguration schemeIdUri="urn:mpeg:dash:23003:3:audio_channel_configuration:2011" value="6" />
   </Representation>
@@ -71,7 +71,7 @@ Inside the `.mpd` manifest file, ensure the `<Representation>` tag for each adap
 
 #### Key Attributes:
 *   **`width` & `height`**: Maps to Resolution.
-*   **`frameRate`**: Maps to Frame Rate (fps).
+*   **`framerate`**: Maps to Frame Rate (fps).
 *   **`codecs`**: Maps to Codec names.
 *   **`bandwidth`**: Maps to Video/Audio Bitrate.
 *   **`audioSamplingRate`**: Maps to Audio Sample Rate (e.g. `48000` maps to `48.0 kHz`).

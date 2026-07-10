@@ -1,6 +1,8 @@
 package io.github.RunC0deRun.shared.playback
 
+import androidx.annotation.OptIn
 import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 
 data class StreamStats(
@@ -15,6 +17,7 @@ data class StreamStats(
     val bufferAhead: String
 )
 
+@OptIn(UnstableApi::class)
 object StreamStatsHelper {
     fun getStreamStats(player: ExoPlayer): StreamStats {
         var videoWidth = 0

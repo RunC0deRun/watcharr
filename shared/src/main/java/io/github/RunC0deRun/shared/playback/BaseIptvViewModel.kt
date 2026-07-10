@@ -308,7 +308,6 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
     }
 
     override fun onCleared() {
-        super.onCleared()
         playerEngine.release()
     }
 }

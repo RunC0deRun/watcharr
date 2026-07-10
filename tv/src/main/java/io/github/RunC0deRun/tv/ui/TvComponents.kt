@@ -2374,7 +2374,7 @@ fun TvPlayerControlsOverlay(
         }
     }
     
-    var userActivityTrigger by remember { mutableStateOf(0) }
+    var userActivityTrigger by remember { mutableIntStateOf(0) }
     
     LaunchedEffect(userActivityTrigger) {
         delay(5.seconds)

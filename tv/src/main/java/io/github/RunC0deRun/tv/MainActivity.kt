@@ -272,7 +272,7 @@ fun TvMainScreen(viewModel: TvViewModel) {
                 )
             }
             
-            // Auto-focus the player Box when overlays are closed
+            // Autofocus the player Box when overlays are closed
             LaunchedEffect(showSidebar, showGuide, showControls, showStats) {
                 if (!showSidebar && !showGuide && !showControls && !showStats) {
                     playerFocusRequester.requestFocus()

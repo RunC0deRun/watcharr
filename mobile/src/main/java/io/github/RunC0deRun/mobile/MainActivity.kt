@@ -18,7 +18,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -84,9 +85,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        val uiState = viewModel.uiState.value
-        if (uiState.playbackState is PlaybackState.Playing) {
-            enterPictureInPictureMode(PictureInPictureParams.Builder().build())
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) {
+            val uiState = viewModel.uiState.value
+            if (uiState.playbackState is PlaybackState.Playing) {
+                enterPictureInPictureMode(PictureInPictureParams.Builder().build())
+            }
         }
     }
 
@@ -115,6 +118,31 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
     var detailedProgram by remember { mutableStateOf<ProgramEntity?>(null) }
 
     val context = LocalContext.current
+
+    LaunchedEffect(uiState.playbackState) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            var currentContext = context
+            var activity: android.app.Activity? = null
+            while (currentContext is android.content.ContextWrapper) {
+                if (currentContext is android.app.Activity) {
+                    activity = currentContext
+                    break
+                }
+                currentContext = currentContext.baseContext
+            }
+            activity?.let { act ->
+                val isPlaying = uiState.playbackState is PlaybackState.Playing
+                val builder = PictureInPictureParams.Builder()
+                    .setAutoEnterEnabled(isPlaying)
+                try {
+                    act.setPictureInPictureParams(builder.build())
+                } catch (e: Exception) {
+                    android.util.Log.e("Watcharr", "Failed to update setPictureInPictureParams", e)
+                }
+            }
+        }
+    }
+
     LaunchedEffect(isPlayerFullscreen) {
         var currentContext = context
         var activity: android.app.Activity? = null
@@ -167,8 +195,9 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
 
     android.util.Log.d("Watcharr", "MainScreen composed. isPlayerFullscreen = $isPlayerFullscreen, playbackState = ${uiState.playbackState}")
 
-    val configuration = LocalConfiguration.current
-    val isTablet = configuration.screenWidthDp >= 600
+    val containerSize = LocalWindowInfo.current.containerSize
+    val density = LocalDensity.current
+    val isTablet = with(density) { containerSize.width.toDp() } >= 600.dp
 
     Column(
         modifier = Modifier
@@ -201,7 +230,7 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
 
         if (!isPlayerFullscreen) {
             if (isTablet) {
-                var activeTab by rememberSaveable { mutableStateOf(0) }
+                var activeTab by rememberSaveable { mutableIntStateOf(0) }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()

@@ -18,8 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -425,6 +428,8 @@ fun VideoPlayerContainer(
     isFullscreen: Boolean,
     onToggleFullscreen: () -> Unit
 ) {
+    val context = LocalContext.current
+    val isPlaying = state is PlaybackState.Playing
     val player = remember(viewModel) { viewModel.playerEngine.getPlayer() }
     val isRestricted = (state is PlaybackState.Playing && state.isVideoRestricted)
     var areControlsVisible by remember { mutableStateOf(false) }
@@ -456,7 +461,41 @@ fun VideoPlayerContainer(
                         onToggleFullscreen()
                     }
                 },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { layoutCoordinates ->
+                        if (isPlaying) {
+                            var currentContext = context
+                            var activity: android.app.Activity? = null
+                            while (currentContext is android.content.ContextWrapper) {
+                                if (currentContext is android.app.Activity) {
+                                    activity = currentContext
+                                    break
+                                }
+                                currentContext = currentContext.baseContext
+                            }
+                            activity?.let { act ->
+                                val builder = android.app.PictureInPictureParams.Builder()
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                                    builder.setAutoEnterEnabled(true)
+                                }
+                                val bounds = layoutCoordinates.boundsInWindow()
+                                val sourceRect = android.graphics.Rect(
+                                    bounds.left.toInt(),
+                                    bounds.top.toInt(),
+                                    bounds.right.toInt(),
+                                    bounds.bottom.toInt()
+                                )
+                                builder.setSourceRectHint(sourceRect)
+                                builder.setAspectRatio(android.util.Rational(16, 9))
+                                try {
+                                    act.setPictureInPictureParams(builder.build())
+                                } catch (e: Exception) {
+                                    android.util.Log.e("Watcharr", "Failed to update setPictureInPictureParams on glob", e)
+                                }
+                            }
+                        }
+                    }
             )
         } else {
             Box(
@@ -760,8 +799,9 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
     var epgInput by remember { mutableStateOf("") }
 
     val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    val isTablet = configuration.screenWidthDp >= 600
+    val containerSize = LocalWindowInfo.current.containerSize
+    val density = LocalDensity.current
+    val isTablet = with(density) { containerSize.width.toDp() } >= 600.dp
 
     if (isTablet && !uiState.isLoadingPlaylist && !uiState.isLoadingEpg) {
         var manualMode by remember { mutableStateOf<String?>(null) }
