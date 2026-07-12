@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.shared.data.epg
+package io.github.runc0derun.shared.data.epg
 
 import android.content.Context
 import androidx.work.Constraints

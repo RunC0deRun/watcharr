@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.mobile
+package io.github.runc0derun.mobile
 
 import android.app.Application
 

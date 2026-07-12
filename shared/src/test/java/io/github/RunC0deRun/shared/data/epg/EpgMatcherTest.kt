@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.shared.data.epg
+package io.github.runc0derun.shared.data.epg
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

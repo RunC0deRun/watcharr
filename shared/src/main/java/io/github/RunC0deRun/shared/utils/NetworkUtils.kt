@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.shared.utils
+package io.github.runc0derun.shared.utils
 
 import java.net.NetworkInterface
 

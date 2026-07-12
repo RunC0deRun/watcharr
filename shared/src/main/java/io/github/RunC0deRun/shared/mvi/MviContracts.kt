@@ -1,7 +1,7 @@
-package io.github.RunC0deRun.shared.mvi
+package io.github.runc0derun.shared.mvi
 
-import io.github.RunC0deRun.shared.data.db.ChannelEntity
-import io.github.RunC0deRun.shared.data.db.ProgramEntity
+import io.github.runc0derun.shared.data.db.ChannelEntity
+import io.github.runc0derun.shared.data.db.ProgramEntity
 
 sealed interface PlaybackState {
     data object Idle : PlaybackState

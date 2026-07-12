@@ -1,10 +1,10 @@
-package io.github.RunC0deRun.tv.ui
+package io.github.runc0derun.tv.ui
 
 import android.app.Application
 import androidx.lifecycle.viewModelScope
-import io.github.RunC0deRun.shared.data.db.ChannelEntity
-import io.github.RunC0deRun.shared.mvi.*
-import io.github.RunC0deRun.shared.playback.BaseIptvViewModel
+import io.github.runc0derun.shared.data.db.ChannelEntity
+import io.github.runc0derun.shared.mvi.*
+import io.github.runc0derun.shared.playback.BaseIptvViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -127,7 +127,7 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
         if (setupServer != null) return
         viewModelScope.launch {
             try {
-                val ip = io.github.RunC0deRun.shared.utils.NetworkUtils.getLocalIpAddress()
+                val ip = io.github.runc0derun.shared.utils.NetworkUtils.getLocalIpAddress()
                 if (ip == null) {
                     _setupStatus.value = "Connect to WiFi or local network to enable QR setup."
                     return@launch

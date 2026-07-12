@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "io.github.RunC0deRun.mobile"
+    namespace = "io.github.runc0derun.mobile"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.github.RunC0deRun.mobile"
+        applicationId = "io.github.runc0derun.mobile"
         minSdk = 26
         targetSdk = 37
         versionCode = 1

@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "io.github.RunC0deRun.shared"
+    namespace = "io.github.runc0derun.shared"
     compileSdk = 37
 
     defaultConfig {

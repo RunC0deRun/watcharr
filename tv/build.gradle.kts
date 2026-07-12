@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "io.github.RunC0deRun.tv"
+    namespace = "io.github.runc0derun.tv"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.github.RunC0deRun.tv"
+        applicationId = "io.github.runc0derun.tv"
         minSdk = 26
         targetSdk = 37
         versionCode = 1

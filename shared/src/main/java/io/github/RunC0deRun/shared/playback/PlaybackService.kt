@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.shared.playback
+package io.github.runc0derun.shared.playback
 
 import androidx.annotation.OptIn
 import androidx.media3.common.ForwardingPlayer
@@ -8,8 +8,8 @@ import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionError
-import io.github.RunC0deRun.shared.data.db.AppDatabase
-import io.github.RunC0deRun.shared.data.epg.EpgMatcher
+import io.github.runc0derun.shared.data.db.AppDatabase
+import io.github.runc0derun.shared.data.epg.EpgMatcher
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture

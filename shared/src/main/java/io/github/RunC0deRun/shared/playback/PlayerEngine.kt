@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.shared.playback
+package io.github.runc0derun.shared.playback
 
 import android.content.Context
 import androidx.annotation.OptIn
@@ -8,8 +8,8 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
-import io.github.RunC0deRun.shared.data.db.ChannelEntity
-import io.github.RunC0deRun.shared.mvi.PlaybackState
+import io.github.runc0derun.shared.data.db.ChannelEntity
+import io.github.runc0derun.shared.mvi.PlaybackState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

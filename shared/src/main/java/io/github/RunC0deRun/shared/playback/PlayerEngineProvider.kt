@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.shared.playback
+package io.github.runc0derun.shared.playback
 
 import android.annotation.SuppressLint
 import android.content.Context

@@ -1,10 +1,10 @@
-package io.github.RunC0deRun.mobile.ui
+package io.github.runc0derun.mobile.ui
 
 import android.app.Application
 import androidx.lifecycle.viewModelScope
-import io.github.RunC0deRun.shared.data.db.ChannelEntity
-import io.github.RunC0deRun.shared.mvi.*
-import io.github.RunC0deRun.shared.playback.BaseIptvViewModel
+import io.github.runc0derun.shared.data.db.ChannelEntity
+import io.github.runc0derun.shared.mvi.*
+import io.github.runc0derun.shared.playback.BaseIptvViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

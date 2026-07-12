@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.mobile
+package io.github.runc0derun.mobile
 
 import android.app.PictureInPictureParams
 import android.content.res.Configuration
@@ -26,11 +26,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
-import io.github.RunC0deRun.mobile.ui.*
-import io.github.RunC0deRun.shared.data.db.ProgramEntity
-import io.github.RunC0deRun.shared.mvi.PlaybackIntent
-import io.github.RunC0deRun.shared.mvi.PlaybackSideEffect
-import io.github.RunC0deRun.shared.mvi.PlaybackState
+import io.github.runc0derun.mobile.ui.*
+import io.github.runc0derun.shared.data.db.ProgramEntity
+import io.github.runc0derun.shared.mvi.PlaybackIntent
+import io.github.runc0derun.shared.mvi.PlaybackSideEffect
+import io.github.runc0derun.shared.mvi.PlaybackState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 

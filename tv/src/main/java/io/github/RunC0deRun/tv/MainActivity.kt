@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.tv
+package io.github.runc0derun.tv
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -14,12 +14,12 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.*
-import io.github.RunC0deRun.tv.ui.*
-import io.github.RunC0deRun.shared.data.db.ChannelEntity
-import io.github.RunC0deRun.shared.data.db.ProgramEntity
-import io.github.RunC0deRun.shared.mvi.PlaybackIntent
-import io.github.RunC0deRun.shared.mvi.PlaybackSideEffect
-import io.github.RunC0deRun.shared.mvi.PlaybackState
+import io.github.runc0derun.tv.ui.*
+import io.github.runc0derun.shared.data.db.ChannelEntity
+import io.github.runc0derun.shared.data.db.ProgramEntity
+import io.github.runc0derun.shared.mvi.PlaybackIntent
+import io.github.runc0derun.shared.mvi.PlaybackSideEffect
+import io.github.runc0derun.shared.mvi.PlaybackState
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds

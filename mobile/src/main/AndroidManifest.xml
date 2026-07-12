@@ -43,7 +43,7 @@
         </activity>
 
         <service
-            android:name="io.github.RunC0deRun.shared.playback.PlaybackService"
+            android:name="io.github.runc0derun.shared.playback.PlaybackService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="true"
             tools:ignore="ExportedService">

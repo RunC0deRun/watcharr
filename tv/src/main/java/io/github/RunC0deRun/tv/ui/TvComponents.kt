@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.tv.ui
+package io.github.runc0derun.tv.ui
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -63,10 +63,10 @@ import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
-import io.github.RunC0deRun.shared.data.db.ChannelEntity
-import io.github.RunC0deRun.shared.data.db.ProgramEntity
-import io.github.RunC0deRun.shared.mvi.*
-import io.github.RunC0deRun.tv.R
+import io.github.runc0derun.shared.data.db.ChannelEntity
+import io.github.runc0derun.shared.data.db.ProgramEntity
+import io.github.runc0derun.shared.mvi.*
+import io.github.runc0derun.tv.R
 import kotlinx.coroutines.launch
 
 @Composable
@@ -2695,11 +2695,11 @@ fun TvPlayerStatsOverlay(
     BackHandler(onBack = onClose)
 
     val player = remember(viewModel) { viewModel.playerEngine.getPlayer() }
-    var stats by remember { mutableStateOf<io.github.RunC0deRun.shared.playback.StreamStats?>(null) }
+    var stats by remember { mutableStateOf<io.github.runc0derun.shared.playback.StreamStats?>(null) }
 
     LaunchedEffect(player) {
         while (true) {
-            stats = io.github.RunC0deRun.shared.playback.StreamStatsHelper.getStreamStats(player)
+            stats = io.github.runc0derun.shared.playback.StreamStatsHelper.getStreamStats(player)
             delay(1.seconds)
         }
     }

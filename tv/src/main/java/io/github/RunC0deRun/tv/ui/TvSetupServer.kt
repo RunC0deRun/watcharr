@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.tv.ui
+package io.github.runc0derun.tv.ui
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

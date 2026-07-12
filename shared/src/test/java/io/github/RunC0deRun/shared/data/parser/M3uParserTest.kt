@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.shared.data.parser
+package io.github.runc0derun.shared.data.parser
 
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking

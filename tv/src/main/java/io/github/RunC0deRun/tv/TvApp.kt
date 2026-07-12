@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.tv
+package io.github.runc0derun.tv
 
 import android.app.Application
 

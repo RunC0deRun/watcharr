@@ -1,6 +1,6 @@
-package io.github.RunC0deRun.shared.data.parser
+package io.github.runc0derun.shared.data.parser
 
-import io.github.RunC0deRun.shared.data.db.ProgramEntity
+import io.github.runc0derun.shared.data.db.ProgramEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.xmlpull.v1.XmlPullParser

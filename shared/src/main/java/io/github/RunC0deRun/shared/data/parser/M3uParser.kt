@@ -1,6 +1,6 @@
-package io.github.RunC0deRun.shared.data.parser
+package io.github.runc0derun.shared.data.parser
 
-import io.github.RunC0deRun.shared.data.db.ChannelEntity
+import io.github.runc0derun.shared.data.db.ChannelEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import java.io.BufferedReader

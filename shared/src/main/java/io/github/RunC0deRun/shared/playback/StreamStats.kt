@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.shared.playback
+package io.github.runc0derun.shared.playback
 
 import androidx.annotation.OptIn
 import androidx.media3.common.C

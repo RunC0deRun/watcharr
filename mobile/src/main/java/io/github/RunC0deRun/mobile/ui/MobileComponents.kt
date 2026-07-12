@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.mobile.ui
+package io.github.runc0derun.mobile.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
@@ -10,7 +10,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.painterResource
-import io.github.RunC0deRun.mobile.R
+import io.github.runc0derun.mobile.R
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,9 +30,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
-import io.github.RunC0deRun.shared.data.db.ChannelEntity
-import io.github.RunC0deRun.shared.data.db.ProgramEntity
-import io.github.RunC0deRun.shared.mvi.*
+import io.github.runc0derun.shared.data.db.ChannelEntity
+import io.github.runc0derun.shared.data.db.ProgramEntity
+import io.github.runc0derun.shared.mvi.*
 import androidx.compose.animation.Crossfade
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
@@ -1968,11 +1968,11 @@ fun MobilePlayerStatsOverlay(
     player: androidx.media3.exoplayer.ExoPlayer,
     onClose: () -> Unit
 ) {
-    var stats by remember { mutableStateOf<io.github.RunC0deRun.shared.playback.StreamStats?>(null) }
+    var stats by remember { mutableStateOf<io.github.runc0derun.shared.playback.StreamStats?>(null) }
 
     LaunchedEffect(player) {
         while (true) {
-            stats = io.github.RunC0deRun.shared.playback.StreamStatsHelper.getStreamStats(player)
+            stats = io.github.runc0derun.shared.playback.StreamStatsHelper.getStreamStats(player)
             delay(1.seconds)
         }
     }

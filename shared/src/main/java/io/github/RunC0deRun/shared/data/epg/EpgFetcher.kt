@@ -1,9 +1,9 @@
-package io.github.RunC0deRun.shared.data.epg
+package io.github.runc0derun.shared.data.epg
 
 import android.content.Context
-import io.github.RunC0deRun.shared.data.db.AppDatabase
-import io.github.RunC0deRun.shared.data.db.ProgramEntity
-import io.github.RunC0deRun.shared.data.parser.EpgParser
+import io.github.runc0derun.shared.data.db.AppDatabase
+import io.github.runc0derun.shared.data.db.ProgramEntity
+import io.github.runc0derun.shared.data.parser.EpgParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URL

@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.shared.data.db
+package io.github.runc0derun.shared.data.db
 
 import androidx.room.Dao
 import androidx.room.Insert

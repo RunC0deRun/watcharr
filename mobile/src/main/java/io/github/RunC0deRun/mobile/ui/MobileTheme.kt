@@ -1,4 +1,4 @@
-package io.github.RunC0deRun.mobile.ui
+package io.github.runc0derun.mobile.ui
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
