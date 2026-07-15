@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "io.github.runc0derun.shared"
+    namespace = "io.github.runc0derun.watcharr.shared"
     compileSdk = 37
 
     defaultConfig {

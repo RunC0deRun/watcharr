@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "io.github.runc0derun.mobile"
+    namespace = "io.github.runc0derun.watcharr.mobile"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "io.github.runc0derun.mobile"
+        applicationId = "io.github.runc0derun.watcharr"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
