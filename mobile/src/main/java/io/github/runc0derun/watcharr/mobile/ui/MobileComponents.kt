@@ -337,58 +337,61 @@ fun ConfigureUrlsDialog(uiState: IptvUiState, viewModel: MobileViewModel, onDism
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(
-                    onClick = {
-                        try {
-                            val scanner = GmsBarcodeScanning.getClient(context)
-                            scanner.startScan()
-                                .addOnSuccessListener { barcode ->
-                                    val raw = barcode.rawValue ?: ""
-                                    if (raw.isNotEmpty()) {
-                                        if (raw.startsWith("http") && raw.contains("/setup")) {
-                                            viewModel.sendConfigToTv(
-                                                tvSetupUrl = raw,
-                                                onSuccess = {
-                                                    Toast.makeText(context, "Configuration successfully sent to TV paired screen!", Toast.LENGTH_SHORT).show()
-                                                },
-                                                onError = { err ->
-                                                    Toast.makeText(context, "Pairing server rejected pairing: $err", Toast.LENGTH_LONG).show()
-                                                }
-                                            )
-                                        } else {
-                                            if (isDispatcharrMode) {
-                                                dispatcharrInput = raw
+                val isAutomotive = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_AUTOMOTIVE)
+                if (!isAutomotive) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Button(
+                        onClick = {
+                            try {
+                                val scanner = GmsBarcodeScanning.getClient(context)
+                                scanner.startScan()
+                                    .addOnSuccessListener { barcode ->
+                                        val raw = barcode.rawValue ?: ""
+                                        if (raw.isNotEmpty()) {
+                                            if (raw.startsWith("http") && raw.contains("/setup")) {
+                                                viewModel.sendConfigToTv(
+                                                    tvSetupUrl = raw,
+                                                    onSuccess = {
+                                                        Toast.makeText(context, "Configuration successfully sent to TV paired screen!", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    onError = { err ->
+                                                        Toast.makeText(context, "Pairing server rejected pairing: $err", Toast.LENGTH_LONG).show()
+                                                    }
+                                                )
                                             } else {
-                                                if (raw.contains(".m3u")) {
-                                                    m3uInput = raw
+                                                if (isDispatcharrMode) {
+                                                    dispatcharrInput = raw
                                                 } else {
-                                                    epgInput = raw
+                                                    if (raw.contains(".m3u")) {
+                                                        m3uInput = raw
+                                                    } else {
+                                                        epgInput = raw
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                }
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Scanner unavailable: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
-                    )
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_search),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondary,
-                            modifier = Modifier.size(18.dp)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Scanner unavailable: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary
                         )
-                        Text("Scan TV Setup QR Code", color = MaterialTheme.colorScheme.onSecondary)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_search),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text("Scan TV Setup QR Code", color = MaterialTheme.colorScheme.onSecondary)
+                        }
                     }
                 }
             }
@@ -801,7 +804,8 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
     val context = LocalContext.current
     val containerSize = LocalWindowInfo.current.containerSize
     val density = LocalDensity.current
-    val isTablet = with(density) { containerSize.width.toDp() } >= 600.dp
+    val isAutomotive = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_AUTOMOTIVE)
+    val isTablet = with(density) { containerSize.width.toDp() } >= 600.dp && !isAutomotive
 
     if (isTablet && !uiState.isLoadingPlaylist && !uiState.isLoadingEpg) {
         var manualMode by remember { mutableStateOf<String?>(null) }
@@ -1780,6 +1784,7 @@ fun MobileSettingsPanel(
     viewModel: MobileViewModel
 ) {
     val context = LocalContext.current
+    val isAutomotive = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_AUTOMOTIVE)
     var isDispatcharrMode by remember { mutableStateOf(uiState.useDispatcharr) }
     var dispatcharrInput by remember { mutableStateOf(uiState.dispatcharrUrl) }
     var m3uInput by remember { mutableStateOf(uiState.playlistUrlInput) }
@@ -1797,7 +1802,7 @@ fun MobileSettingsPanel(
             color = MaterialTheme.colorScheme.onSurface
         )
         Text(
-            text = "Configure your connection URLs or pair with an Android TV",
+            text = if (isAutomotive) "Configure your connection URLs" else "Configure your connection URLs or pair with an Android TV",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.secondary,
             modifier = Modifier.padding(bottom = 24.dp)
@@ -1809,7 +1814,7 @@ fun MobileSettingsPanel(
         ) {
             Column(
                 modifier = Modifier
-                    .weight(1.2f)
+                    .weight(if (isAutomotive) 1f else 1.2f)
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f), shape = RoundedCornerShape(12.dp))
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1895,67 +1900,69 @@ fun MobileSettingsPanel(
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f), shape = RoundedCornerShape(12.dp))
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text("Pair Android TV", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "Scan the QR code displayed on your TV's pairing setup screen to pair automatically and sync configuration.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                Button(
-                    onClick = {
-                        try {
-                            val scanner = GmsBarcodeScanning.getClient(context)
-                            scanner.startScan()
-                                .addOnSuccessListener { barcode ->
-                                    val raw = barcode.rawValue ?: ""
-                                    if (raw.isNotEmpty()) {
-                                        if (raw.startsWith("http") && raw.contains("/setup")) {
-                                            viewModel.sendConfigToTv(
-                                                tvSetupUrl = raw,
-                                                onSuccess = {
-                                                    Toast.makeText(context, "Configuration successfully sent to TV paired screen!", Toast.LENGTH_SHORT).show()
-                                                },
-                                                onError = { err ->
-                                                    Toast.makeText(context, "Pairing server rejected pairing: $err", Toast.LENGTH_LONG).show()
-                                                }
-                                            )
-                                        } else {
-                                            if (isDispatcharrMode) {
-                                                dispatcharrInput = raw
+            if (!isAutomotive) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f), shape = RoundedCornerShape(12.dp))
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text("Pair Android TV", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Scan the QR code displayed on your TV's pairing setup screen to pair automatically and sync configuration.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            try {
+                                val scanner = GmsBarcodeScanning.getClient(context)
+                                scanner.startScan()
+                                    .addOnSuccessListener { barcode ->
+                                        val raw = barcode.rawValue ?: ""
+                                        if (raw.isNotEmpty()) {
+                                            if (raw.startsWith("http") && raw.contains("/setup")) {
+                                                viewModel.sendConfigToTv(
+                                                    tvSetupUrl = raw,
+                                                    onSuccess = {
+                                                        Toast.makeText(context, "Configuration successfully sent to TV paired screen!", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    onError = { err ->
+                                                        Toast.makeText(context, "Pairing server rejected pairing: $err", Toast.LENGTH_LONG).show()
+                                                    }
+                                                )
                                             } else {
-                                                if (raw.contains(".m3u")) {
-                                                    m3uInput = raw
+                                                if (isDispatcharrMode) {
+                                                    dispatcharrInput = raw
                                                 } else {
-                                                    epgInput = raw
+                                                    if (raw.contains(".m3u")) {
+                                                        m3uInput = raw
+                                                    } else {
+                                                        epgInput = raw
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                }
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Scanner unavailable: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(50.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Scanner unavailable: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(50.dp)
                     ) {
-                        Icon(painter = painterResource(id = R.drawable.ic_info), contentDescription = null)
-                        Text("Scan TV Setup QR Code")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(painter = painterResource(id = R.drawable.ic_info), contentDescription = null)
+                            Text("Scan TV Setup QR Code")
+                        }
                     }
                 }
             }
