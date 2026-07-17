@@ -7,7 +7,10 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import io.github.runc0derun.watcharr.shared.data.db.ChannelEntity
 import io.github.runc0derun.watcharr.shared.mvi.PlaybackState
 import kotlinx.coroutines.CoroutineScope
@@ -57,7 +60,31 @@ class PlayerEngine(private val context: Context) {
             .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MOVIE)
             .build()
 
-        val player = ExoPlayer.Builder(context)
+        val mediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+            var decoderInfos = MediaCodecSelector.DEFAULT.getDecoderInfos(
+                mimeType,
+                requiresSecureDecoder,
+                requiresTunnelingDecoder
+            )
+            if (requiresSecureDecoder) {
+                val nonSecureDecoders = MediaCodecSelector.DEFAULT.getDecoderInfos(
+                    mimeType,
+                    /* requiresSecureDecoder = */ false,
+                    requiresTunnelingDecoder
+                )
+                val combined = ArrayList<MediaCodecInfo>(decoderInfos.size + nonSecureDecoders.size)
+                combined.addAll(decoderInfos)
+                combined.addAll(nonSecureDecoders)
+                decoderInfos = combined
+            }
+            decoderInfos
+        }
+
+        val renderersFactory = DefaultRenderersFactory(context)
+            .setEnableDecoderFallback(true)
+            .setMediaCodecSelector(mediaCodecSelector)
+
+        val player = ExoPlayer.Builder(context, renderersFactory)
             .setLoadControl(loadControl)
             .setAudioAttributes(audioAttributes, true)
             .build()
@@ -135,16 +162,22 @@ class PlayerEngine(private val context: Context) {
             )
 
         // Dynamically detect DRM stream proxying and apply Widevine configuration
-        if (finalUrl.contains("/live/")) {
+        val isHls = finalUrl.contains(".m3u8") || finalUrl.contains("/hls/")
+        val isTs = finalUrl.contains(".ts")
+        val uri = try { finalUrl.toUri() } catch (e: Exception) { null }
+        val pathSegments = uri?.pathSegments ?: emptyList()
+        val liveIndex = pathSegments.indexOf("live")
+        
+        // The Widevine DRM proxy has exactly one segment after "live" (i.e. /live/channel_id)
+        val isWidevineProxy = liveIndex != -1 && pathSegments.size == liveIndex + 2
+
+        if (finalUrl.contains("/live/") && isWidevineProxy && !isHls && !isTs) {
             mediaItemBuilder.setMimeType("application/dash+xml")
             try {
-                val uri = finalUrl.toUri()
-                val pathSegments = uri.pathSegments
-                val liveIndex = pathSegments.indexOf("live")
-                if (liveIndex != -1 && liveIndex + 1 < pathSegments.size) {
+                if (liveIndex + 1 < pathSegments.size) {
                     val channelId = pathSegments[liveIndex + 1]
-                    val scheme = uri.scheme ?: "https"
-                    val authority = uri.authority
+                    val scheme = uri?.scheme ?: "https"
+                    val authority = uri?.authority
                     if (authority != null) {
                         val licenseUri = "$scheme://$authority/license/$channelId"
                         val drmConfig = MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
@@ -156,7 +189,7 @@ class PlayerEngine(private val context: Context) {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-        } else if (finalUrl.contains(".m3u8") || finalUrl.contains("/hls/")) {
+        } else if (isHls) {
             mediaItemBuilder.setMimeType("application/x-mpegURL")
         }
 
