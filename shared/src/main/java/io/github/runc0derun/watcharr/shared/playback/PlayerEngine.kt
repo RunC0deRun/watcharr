@@ -190,8 +190,12 @@ class PlayerEngine(private val context: Context) {
     }
 
     fun stop() {
+        retryJob?.cancel()
+        retryAttempt = 0
+        currentChannel = null
         exoPlayer?.stop()
         exoPlayer?.clearMediaItems()
+        _playbackState.value = PlaybackState.Idle
     }
 
     fun release() {
