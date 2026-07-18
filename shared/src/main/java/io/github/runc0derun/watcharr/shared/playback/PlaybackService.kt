@@ -94,10 +94,6 @@ class PlaybackService : MediaLibraryService() {
                     controller.uid == android.os.Process.SYSTEM_UID ||
                     controller.uid == android.os.Process.myUid()
 
-            if (isTrusted && packageName == "com.google.android.projection.gearhead") {
-                playerEngine.updateVideoRestriction(true)
-            }
-
             return if (isTrusted) {
                 super.onConnect(session, controller)
             } else {
@@ -107,14 +103,39 @@ class PlaybackService : MediaLibraryService() {
 
         override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
             super.onDisconnected(session, controller)
-            if (controller.packageName == "com.google.android.projection.gearhead") {
-                val hasOtherAA = session.connectedControllers.any {
-                    it.packageName == "com.google.android.projection.gearhead" && it != controller
-                }
-                if (!hasOtherAA) {
-                    playerEngine.updateVideoRestriction(false)
+        }
+
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val future = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+            serviceScope.launch(Dispatchers.IO) {
+                try {
+                    val currentChannel = playerEngine.currentChannel
+                    val channels = database.channelDao().getAllChannels()
+                    val channelToPlay = currentChannel ?: channels.firstOrNull()
+                    val mediaItem = if (channelToPlay != null) {
+                        kotlinx.coroutines.withContext(Dispatchers.Main) {
+                            playerEngine.setActiveChannelList(channels)
+                            playerEngine.setCurrentChannel(channelToPlay)
+                        }
+                        playerEngine.resolveMediaItem(channelToPlay.url, channelToPlay.toMediaItem().mediaMetadata)
+                    } else {
+                        null
+                    }
+                    if (mediaItem != null) {
+                        val result = MediaSession.MediaItemsWithStartPosition(listOf(mediaItem), 0, 0L)
+                        future.set(result)
+                    } else {
+                        future.setException(UnsupportedOperationException("No media item to resume"))
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("Watcharr", "Error in onPlaybackResumption", e)
+                    future.setException(e)
                 }
             }
+            return future
         }
 
         override fun onGetLibraryRoot(
@@ -214,27 +235,31 @@ class PlaybackService : MediaLibraryService() {
             controller: MediaSession.ControllerInfo,
             mediaItems: MutableList<MediaItem>
         ): ListenableFuture<MutableList<MediaItem>> {
-            val resolvedItems = mediaItems.map { item ->
-                MediaItem.Builder()
-                    .setMediaId(item.mediaId)
-                    .setUri(item.mediaId)
-                    .setMediaMetadata(item.mediaMetadata)
-                    .build()
-            }.toMutableList()
-            
+            val future = SettableFuture.create<MutableList<MediaItem>>()
             serviceScope.launch(Dispatchers.IO) {
-                val firstItem = resolvedItems.firstOrNull() ?: return@launch
-                val channels = database.channelDao().getAllChannels()
-                val channel = channels.firstOrNull { it.url == firstItem.mediaId }
-                if (channel != null) {
-                    launch(Dispatchers.Main) {
-                        playerEngine.setActiveChannelList(channels)
-                        playerEngine.setCurrentChannel(channel)
+                try {
+                    val resolvedItems = mediaItems.map { item ->
+                        playerEngine.resolveMediaItem(item.mediaId, item.mediaMetadata)
+                    }.toMutableList()
+                    
+                    val channels = database.channelDao().getAllChannels()
+                    val firstItem = resolvedItems.firstOrNull()
+                    if (firstItem != null) {
+                        val channel = channels.firstOrNull { it.url == firstItem.mediaId }
+                        if (channel != null) {
+                            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                                playerEngine.setActiveChannelList(channels)
+                                playerEngine.setCurrentChannel(channel)
+                            }
+                        }
                     }
+                    future.set(resolvedItems)
+                } catch (e: Exception) {
+                    android.util.Log.e("Watcharr", "Error resolving media items in onAddMediaItems", e)
+                    future.setException(e)
                 }
             }
-            
-            return Futures.immediateFuture(resolvedItems)
+            return future
         }
     }
 

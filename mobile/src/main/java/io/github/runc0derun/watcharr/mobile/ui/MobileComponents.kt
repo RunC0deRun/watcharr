@@ -560,6 +560,13 @@ fun VideoPlayerContainer(
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.White
                         )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { viewModel.playerEngine.stop() },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Dismiss", color = Color.White)
+                        }
                     }
                 }
             }

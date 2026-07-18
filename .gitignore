@@ -16,3 +16,7 @@ local.properties
 # OS files
 .DS_Store
 Thumbs.db
+
+# Release files
+mobile/release
+tv/release

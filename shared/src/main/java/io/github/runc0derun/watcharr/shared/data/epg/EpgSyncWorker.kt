@@ -35,7 +35,7 @@ class EpgSyncWorker(
 
         fun schedule(context: Context, epgUrl: String) {
             val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.UNMETERED)
+                .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
 
             val workRequest = PeriodicWorkRequestBuilder<EpgSyncWorker>(24, TimeUnit.HOURS)
