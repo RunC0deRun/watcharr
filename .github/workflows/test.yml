@@ -7,6 +7,10 @@ jobs:
   test:
     runs-on: nixos-latest
 
+    env:
+      ANDROID_HOME: /run/current-system/sw/libexec/android-sdk
+      ANDROID_SDK_ROOT: /run/current-system/sw/libexec/android-sdk
+
     steps:
       - name: Install Node.js (for Actions checkout)
         run: |
