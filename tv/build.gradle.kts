@@ -11,10 +11,14 @@ android {
         applicationId = "io.github.runc0derun.watcharr"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
+        versionCode = 2001
         versionName = "2026.07"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            debugSymbolLevel = "FULL"
+        }
     }
 
     buildTypes {

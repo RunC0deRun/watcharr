@@ -33,7 +33,7 @@ class PlayerEngine(private val context: Context) {
     private val scope = CoroutineScope(Dispatchers.Main + job)
     private var retryJob: Job? = null
     private var retryAttempt = 0
-    private var currentChannel: ChannelEntity? = null
+    internal var currentChannel: ChannelEntity? = null
     private var activeChannelList: List<ChannelEntity> = emptyList()
     private var isVideoRestrictedState = false
 
@@ -52,12 +52,19 @@ class PlayerEngine(private val context: Context) {
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
+        val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
+            .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+            .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
+
         val player = ExoPlayer.Builder(context)
             .setLoadControl(loadControl)
+            .setAudioAttributes(audioAttributes, true)
             .build()
 
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
+                android.util.Log.d("Watcharr", "onPlaybackStateChanged: state=$state, currentChannel=${currentChannel?.name}, isVideoRestrictedState=$isVideoRestrictedState")
                 when (state) {
                     Player.STATE_IDLE -> {
                         // Do not overwrite Error state if it was set
@@ -98,53 +105,62 @@ class PlayerEngine(private val context: Context) {
         _playbackState.value = PlaybackState.Loading
 
         scope.launch {
-            android.util.Log.d("Watcharr", "Original play URL: ${channel.url}")
-            val finalUrl = resolveRedirect(channel.url)
-            android.util.Log.d("Watcharr", "Resolved play URL: $finalUrl")
+            val mediaItem = resolveMediaItem(channel.url, channel.toMediaItem().mediaMetadata)
             
             withContext(Dispatchers.Main) {
                 val player = getPlayer()
-                val mediaItemBuilder = MediaItem.Builder()
-                    .setUri(finalUrl)
-                    .setLiveConfiguration(
-                        MediaItem.LiveConfiguration.Builder()
-                            .setTargetOffsetMs(3000)
-                            .setMinPlaybackSpeed(0.95f)
-                            .setMaxPlaybackSpeed(1.05f)
-                            .build()
-                    )
-
-                // Dynamically detect DRM stream proxying and apply Widevine configuration
-                if (finalUrl.contains("/live/")) {
-                    mediaItemBuilder.setMimeType("application/dash+xml")
-                    try {
-                        val uri = finalUrl.toUri()
-                        val pathSegments = uri.pathSegments
-                        val liveIndex = pathSegments.indexOf("live")
-                        if (liveIndex != -1 && liveIndex + 1 < pathSegments.size) {
-                            val channelId = pathSegments[liveIndex + 1]
-                            val scheme = uri.scheme ?: "https"
-                            val authority = uri.authority
-                            if (authority != null) {
-                                val licenseUri = "$scheme://$authority/license/$channelId"
-                                val drmConfig = MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
-                                    .setLicenseUri(licenseUri)
-                                    .build()
-                                mediaItemBuilder.setDrmConfiguration(drmConfig)
-                            }
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-
-                val mediaItem = mediaItemBuilder.build()
                 player.setMediaItem(mediaItem)
                 player.prepare()
                 setVideoEnabled(!isVideoRestrictedState)
                 player.playWhenReady = true
             }
         }
+    }
+
+    internal suspend fun resolveMediaItem(url: String, metadata: androidx.media3.common.MediaMetadata): MediaItem {
+        android.util.Log.d("Watcharr", "Original play URL: $url")
+        val finalUrl = resolveRedirect(url)
+        android.util.Log.d("Watcharr", "Resolved play URL: $finalUrl")
+
+        val mediaItemBuilder = MediaItem.Builder()
+            .setMediaId(url)
+            .setUri(finalUrl)
+            .setMediaMetadata(metadata)
+            .setLiveConfiguration(
+                MediaItem.LiveConfiguration.Builder()
+                    .setTargetOffsetMs(3000)
+                    .setMinPlaybackSpeed(0.95f)
+                    .setMaxPlaybackSpeed(1.05f)
+                    .build()
+            )
+
+        // Dynamically detect DRM stream proxying and apply Widevine configuration
+        if (finalUrl.contains("/live/")) {
+            mediaItemBuilder.setMimeType("application/dash+xml")
+            try {
+                val uri = finalUrl.toUri()
+                val pathSegments = uri.pathSegments
+                val liveIndex = pathSegments.indexOf("live")
+                if (liveIndex != -1 && liveIndex + 1 < pathSegments.size) {
+                    val channelId = pathSegments[liveIndex + 1]
+                    val scheme = uri.scheme ?: "https"
+                    val authority = uri.authority
+                    if (authority != null) {
+                        val licenseUri = "$scheme://$authority/license/$channelId"
+                        val drmConfig = MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
+                            .setLicenseUri(licenseUri)
+                            .build()
+                        mediaItemBuilder.setDrmConfiguration(drmConfig)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        } else if (finalUrl.contains(".m3u8") || finalUrl.contains("/hls/")) {
+            mediaItemBuilder.setMimeType("application/x-mpegURL")
+        }
+
+        return mediaItemBuilder.build()
     }
 
     fun togglePlay() {
@@ -204,6 +220,7 @@ class PlayerEngine(private val context: Context) {
     }
 
     fun updateVideoRestriction(restricted: Boolean) {
+        android.util.Log.d("Watcharr", "updateVideoRestriction: restricted=$restricted")
         isVideoRestrictedState = restricted
         setVideoEnabled(!restricted)
         val state = _playbackState.value
