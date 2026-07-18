@@ -18,6 +18,11 @@ jobs:
           echo "Installing Java via Nix..."
           nix-env -iA nixpkgs.jdk21_headless || true
 
+      - name: Install sed
+        run: |
+          echo "Installing sed via Nix..."
+          nix-env -iA nixpkgs.gnused || true
+
       - name: Checkout code
         uses: actions/checkout@v7
 
