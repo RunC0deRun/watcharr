@@ -5,9 +5,14 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: nixos-latest
 
     steps:
+      - name: Install Node.js (for Actions checkout)
+        run: |
+          echo "Installing Node.js via Nix..."
+          nix-env -iA nixpkgs.nodejs || nix-env -iA nixpkgs.nodejs-20_x || true
+
       - name: Checkout code
         uses: actions/checkout@v7
 
