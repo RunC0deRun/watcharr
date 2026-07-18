@@ -113,6 +113,35 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
         _epgUrlInput.value = prefs.getString("epg_url", "") ?: ""
         _useDispatcharr.value = prefs.getBoolean("use_dispatcharr", false)
         _dispatcharrUrl.value = prefs.getString("dispatcharr_url", "") ?: ""
+
+        if (onboardingDone) {
+            checkAndSyncEpgOnStartup()
+        }
+    }
+
+    private fun checkAndSyncEpgOnStartup() {
+        val epgUrl = _epgUrlInput.value
+        if (epgUrl.isEmpty()) return
+
+        // 1. Ensure the periodic WorkManager job is scheduled.
+        // This is safe because EpgSyncWorker.schedule uses UPDATE policy.
+        EpgSyncWorker.schedule(getApplication(), epgUrl)
+
+        // 2. Check if the last sync was more than 12 hours ago.
+        val lastSync = prefs.getLong("last_epg_sync_time", 0L)
+        val now = System.currentTimeMillis()
+        if (now - lastSync > 12 * 60 * 60 * 1000L) {
+            viewModelScope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        val fetcher = EpgFetcher(getApplication())
+                        fetcher.fetchAndSyncEpg(epgUrl)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
     }
 
     fun completeOnboarding(playlistUrl: String, epgUrl: String, dispatcharrUrl: String?, useDispatcharr: Boolean) {

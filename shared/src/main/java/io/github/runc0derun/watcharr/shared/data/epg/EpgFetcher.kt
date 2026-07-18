@@ -54,6 +54,9 @@ class EpgFetcher(private val context: Context) {
 
             pruneCache()
 
+            val prefs = context.getSharedPreferences("watcharr_prefs", Context.MODE_PRIVATE)
+            prefs.edit().putLong("last_epg_sync_time", System.currentTimeMillis()).apply()
+
             Result.success(Unit)
         } catch (e: Exception) {
             e.printStackTrace()
