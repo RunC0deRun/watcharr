@@ -16,7 +16,7 @@ jobs:
       - name: Install Java
         run: |
           echo "Installing Java via Nix..."
-          nix-env -iA nixpkgs.openjdk21-bin || true
+          nix-env -iA nixpkgs.jdk21_headless || true
 
       - name: Checkout code
         uses: actions/checkout@v7
