@@ -50,6 +50,9 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
     protected val _isOnboardingCompleted = MutableStateFlow(false)
     protected val _useDispatcharr = MutableStateFlow(false)
     protected val _dispatcharrUrl = MutableStateFlow("")
+    protected val _isTailnetEnabled = MutableStateFlow(false)
+    protected val _tailscaleAuthKey = MutableStateFlow("")
+    protected val _tsnetStatus = MutableStateFlow("")
 
     protected val prefs: SharedPreferences = application.getSharedPreferences("watcharr_prefs", Context.MODE_PRIVATE)
 
@@ -114,9 +117,48 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
         _useDispatcharr.value = prefs.getBoolean("use_dispatcharr", false)
         _dispatcharrUrl.value = prefs.getString("dispatcharr_url", "") ?: ""
 
+        val tailnetEnabled = prefs.getBoolean("tailnet_enabled", false)
+        val tailscaleAuthKey = prefs.getString("tailscale_auth_key", "") ?: ""
+        _isTailnetEnabled.value = tailnetEnabled
+        _tailscaleAuthKey.value = tailscaleAuthKey
+
+        viewModelScope.launch {
+            TsnetManager.status.collect { status ->
+                _tsnetStatus.value = status
+            }
+        }
+
+        if (tailnetEnabled && tailscaleAuthKey.isNotEmpty()) {
+            TsnetManager.start(getApplication(), tailscaleAuthKey)
+        }
+
         if (onboardingDone) {
             checkAndSyncEpgOnStartup()
         }
+    }
+
+    fun setTailnetEnabled(enabled: Boolean) {
+        _isTailnetEnabled.value = enabled
+        prefs.edit().putBoolean("tailnet_enabled", enabled).apply()
+        if (enabled) {
+            val key = _tailscaleAuthKey.value
+            if (key.isNotEmpty()) {
+                TsnetManager.start(getApplication(), key)
+            }
+        } else {
+            TsnetManager.stop()
+        }
+    }
+
+    fun setTailscaleAuthKey(authKey: String) {
+        _tailscaleAuthKey.value = authKey
+        prefs.edit().putString("tailscale_auth_key", authKey).apply()
+    }
+
+    fun connectTailscale(authKey: String) {
+        _tailscaleAuthKey.value = authKey
+        prefs.edit().putString("tailscale_auth_key", authKey).apply()
+        setTailnetEnabled(true)
     }
 
     private fun checkAndSyncEpgOnStartup() {
@@ -132,6 +174,10 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
         val now = System.currentTimeMillis()
         if (now - lastSync > 12 * 60 * 60 * 1000L) {
             viewModelScope.launch {
+                if (TsnetManager.isEnabled()) {
+                    val connected = TsnetManager.awaitConnection()
+                    if (!connected) return@launch
+                }
                 try {
                     withContext(Dispatchers.IO) {
                         val fetcher = EpgFetcher(getApplication())
@@ -232,6 +278,16 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
     protected fun loadPlaylist(m3uUrl: String) {
         viewModelScope.launch {
             _isLoadingPlaylist.value = true
+            
+            if (TsnetManager.isEnabled()) {
+                val connected = TsnetManager.awaitConnection()
+                if (!connected) {
+                    _isLoadingPlaylist.value = false
+                    _sideEffects.emit(PlaybackSideEffect.ShowToast("Tailscale connection failed: ${TsnetManager.status.value}"))
+                    return@launch
+                }
+            }
+
             val context = getApplication<Application>()
             val tempFile = java.io.File.createTempFile("playlist", ".m3u", context.cacheDir)
             try {
@@ -279,6 +335,16 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
     fun loadEpg(epgUrl: String) {
         viewModelScope.launch {
             _isLoadingEpg.value = true
+            
+            if (TsnetManager.isEnabled()) {
+                val connected = TsnetManager.awaitConnection()
+                if (!connected) {
+                    _isLoadingEpg.value = false
+                    _sideEffects.emit(PlaybackSideEffect.ShowToast("Tailscale connection failed: ${TsnetManager.status.value}"))
+                    return@launch
+                }
+            }
+
             try {
                 withContext(Dispatchers.IO) {
                     val fetcher = EpgFetcher(getApplication())
@@ -338,5 +404,6 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
 
     override fun onCleared() {
         playerEngine.release()
+        TsnetManager.stop()
     }
 }

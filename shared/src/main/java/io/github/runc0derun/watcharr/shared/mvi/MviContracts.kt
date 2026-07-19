@@ -37,5 +37,8 @@ data class IptvUiState(
     val dispatcharrUrl: String = "",
     val setupQrUrl: String = "",
     val setupStatus: String = "",
-    val isInitialized: Boolean = false
+    val isInitialized: Boolean = false,
+    val isTailnetEnabled: Boolean = false,
+    val tailscaleAuthKey: String = "",
+    val tsnetStatus: String = ""
 )
