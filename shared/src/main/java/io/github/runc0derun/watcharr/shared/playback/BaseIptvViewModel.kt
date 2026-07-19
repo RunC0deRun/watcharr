@@ -153,13 +153,12 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
     fun setTailscaleAuthKey(authKey: String) {
         _tailscaleAuthKey.value = authKey
         prefs.edit().putString("tailscale_auth_key", authKey).apply()
-        if (_isTailnetEnabled.value) {
-            if (authKey.isNotEmpty()) {
-                TsnetManager.start(getApplication(), authKey)
-            } else {
-                TsnetManager.stop()
-            }
-        }
+    }
+
+    fun connectTailscale(authKey: String) {
+        _tailscaleAuthKey.value = authKey
+        prefs.edit().putString("tailscale_auth_key", authKey).apply()
+        setTailnetEnabled(true)
     }
 
     private fun checkAndSyncEpgOnStartup() {

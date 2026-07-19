@@ -857,10 +857,14 @@ fun TailscaleStatusIndicator(status: String, modifier: Modifier = Modifier) {
 fun MobileOnboardingWizard(viewModel: MobileViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var currentStep by remember { mutableIntStateOf(0) }
+    var manualStep by remember { mutableIntStateOf(0) }
     var isDispatcharrMode by remember { mutableStateOf(true) }
     var dispatcharrInput by remember { mutableStateOf("") }
     var m3uInput by remember { mutableStateOf("") }
     var epgInput by remember { mutableStateOf("") }
+
+    var isTailnetSelected by remember { mutableStateOf(uiState.isTailnetEnabled) }
+    var tailscaleAuthKeyInput by remember(uiState.tailscaleAuthKey) { mutableStateOf(uiState.tailscaleAuthKey) }
 
     val context = LocalContext.current
     val containerSize = LocalWindowInfo.current.containerSize
@@ -869,7 +873,6 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
     val isTablet = with(density) { containerSize.width.toDp() } >= 600.dp && !isAutomotive
 
     if (isTablet && !uiState.isLoadingPlaylist && !uiState.isLoadingEpg) {
-        var manualMode by remember { mutableStateOf<String?>(null) }
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -939,166 +942,211 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-            when (manualMode) {
-                null -> {
-                    Text(
-                        text = "Manual Setup",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Configure your connection URLs directly on this device.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.secondary,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(
-                        onClick = { manualMode = "dispatcharr" },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Use Dispatcharr Server")
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = { manualMode = "custom" },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Enter Custom URLs")
-                    }
-                }
-                "dispatcharr" -> {
-                    Text(
-                        text = "Dispatcharr Server",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = dispatcharrInput,
-                        onValueChange = { dispatcharrInput = it },
-                        label = { Text("Server URL") },
-                        placeholder = { Text("http://192.168.1.100:8080") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Connect to Tailscale Tailnet", color = Color.White)
-                        Switch(
-                            checked = uiState.isTailnetEnabled,
-                            onCheckedChange = { viewModel.setTailnetEnabled(it) }
+                when (manualStep) {
+                    0 -> {
+                        Text(
+                            text = "Manual Setup",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
-                    }
-                    if (uiState.isTailnetEnabled) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Configure your connection URLs directly on this device.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.secondary,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(
+                            onClick = {
+                                isDispatcharrMode = true
+                                manualStep = 1
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Use Dispatcharr Server")
+                        }
                         Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                isDispatcharrMode = false
+                                manualStep = 1
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Enter Custom URLs")
+                        }
+                    }
+                    1 -> {
+                        Text(
+                            text = "Tailscale Tailnet",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isTailnetSelected = true },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isTailnetSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            border = if (isTailnetSelected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text("Yes, on a Tailnet", fontWeight = FontWeight.Bold, color = Color.White)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("My server/sources are hosted on a private Tailscale network.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { isTailnetSelected = false },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (!isTailnetSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            border = if (!isTailnetSelected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text("No, standard network", fontWeight = FontWeight.Bold, color = Color.White)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Connect directly via local IP or public internet URL.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Button(onClick = { manualStep = 0 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
+                                Text("Back")
+                            }
+                            Button(
+                                onClick = {
+                                    if (isTailnetSelected) {
+                                        manualStep = 2
+                                    } else {
+                                        viewModel.setTailnetEnabled(false)
+                                        manualStep = 3
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Next")
+                            }
+                        }
+                    }
+                    2 -> {
+                        Text(
+                            text = "Tailscale Setup",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
                         OutlinedTextField(
-                            value = uiState.tailscaleAuthKey,
-                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
+                            value = tailscaleAuthKeyInput,
+                            onValueChange = { tailscaleAuthKeyInput = it },
                             label = { Text("Tailscale Auth Key") },
                             placeholder = { Text("tskey-auth-...") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        TailscaleStatusIndicator(status = uiState.tsnetStatus)
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Button(onClick = { manualMode = null }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
-                            Text("Back")
-                        }
                         Button(
-                            onClick = {
-                                if (dispatcharrInput.isNotEmpty()) {
-                                    val m3u = "$dispatcharrInput/output/m3u"
-                                    val epg = "$dispatcharrInput/output/epg"
-                                    viewModel.completeOnboarding(m3u, epg, dispatcharrInput, true)
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            enabled = dispatcharrInput.isNotEmpty()
-                        ) {
-                            Text("Load")
-                        }
-                    }
-                }
-                "custom" -> {
-                    Text(
-                        text = "Custom URLs",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = m3uInput,
-                        onValueChange = { m3uInput = it },
-                        label = { Text("M3U Playlist URL") },
-                        placeholder = { Text("http://...") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = epgInput,
-                        onValueChange = { epgInput = it },
-                        label = { Text("EPG XMLTV URL (Optional)") },
-                        placeholder = { Text("http://...") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Connect to Tailscale Tailnet", color = Color.White)
-                        Switch(
-                            checked = uiState.isTailnetEnabled,
-                            onCheckedChange = { viewModel.setTailnetEnabled(it) }
-                        )
-                    }
-                    if (uiState.isTailnetEnabled) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = uiState.tailscaleAuthKey,
-                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
-                            label = { Text("Tailscale Auth Key") },
-                            placeholder = { Text("tskey-auth-...") },
-                            singleLine = true,
+                            onClick = { viewModel.connectTailscale(tailscaleAuthKeyInput) },
                             modifier = Modifier.fillMaxWidth()
-                        )
+                        ) {
+                            Text("Connect")
+                        }
                         Spacer(modifier = Modifier.height(12.dp))
                         TailscaleStatusIndicator(status = uiState.tsnetStatus)
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Button(onClick = { manualMode = null }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
-                            Text("Back")
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Button(onClick = { manualStep = 1 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
+                                Text("Back")
+                            }
+                            Button(onClick = { manualStep = 3 }, modifier = Modifier.weight(1f)) {
+                                Text("Next")
+                            }
                         }
-                        Button(
-                            onClick = {
-                                if (m3uInput.isNotEmpty()) {
-                                    viewModel.completeOnboarding(m3uInput, epgInput, null, false)
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            enabled = m3uInput.isNotEmpty()
-                        ) {
-                            Text("Load")
+                    }
+                    3 -> {
+                        Text(
+                            text = if (isDispatcharrMode) "Dispatcharr Server" else "Custom URLs",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        if (isDispatcharrMode) {
+                            OutlinedTextField(
+                                value = dispatcharrInput,
+                                onValueChange = { dispatcharrInput = it },
+                                label = { Text("Server URL") },
+                                placeholder = { Text("http://192.168.1.100:8080") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            OutlinedTextField(
+                                value = m3uInput,
+                                onValueChange = { m3uInput = it },
+                                label = { Text("M3U Playlist URL") },
+                                placeholder = { Text("http://...") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = epgInput,
+                                onValueChange = { epgInput = it },
+                                label = { Text("EPG XMLTV URL (Optional)") },
+                                placeholder = { Text("http://...") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Button(
+                                onClick = {
+                                    if (isTailnetSelected) {
+                                        manualStep = 2
+                                    } else {
+                                        manualStep = 1
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                            ) {
+                                Text("Back")
+                            }
+                            Button(
+                                onClick = {
+                                    if (isDispatcharrMode) {
+                                        if (dispatcharrInput.isNotEmpty()) {
+                                            val m3u = "$dispatcharrInput/output/m3u"
+                                            val epg = "$dispatcharrInput/output/epg"
+                                            viewModel.completeOnboarding(m3u, epg, dispatcharrInput, true)
+                                        }
+                                    } else {
+                                        if (m3uInput.isNotEmpty()) {
+                                            viewModel.completeOnboarding(m3uInput, epgInput, null, false)
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = if (isDispatcharrMode) dispatcharrInput.isNotEmpty() else m3uInput.isNotEmpty()
+                            ) {
+                                Text("Load")
+                            }
                         }
                     }
                 }
-            }
             }
         }
         return
@@ -1171,6 +1219,117 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
 
             1 -> {
                 Text(
+                    text = "Tailscale Tailnet",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Is your IPTV source hosted on a Tailscale Tailnet?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isTailnetSelected = true },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isTailnetSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    border = if (isTailnetSelected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Yes, on a Tailnet", fontWeight = FontWeight.Bold, color = Color.White)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("My server/sources are hosted on a private Tailscale network.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isTailnetSelected = false },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (!isTailnetSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    border = if (!isTailnetSelected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("No, standard network", fontWeight = FontWeight.Bold, color = Color.White)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Connect directly via local IP or public internet URL.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Button(onClick = { currentStep = 0 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
+                        Text("Back")
+                    }
+                    Button(
+                        onClick = {
+                            if (isTailnetSelected) {
+                                currentStep = 2
+                            } else {
+                                viewModel.setTailnetEnabled(false)
+                                currentStep = 3
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Next")
+                    }
+                }
+            }
+
+            2 -> {
+                Text(
+                    text = "Tailscale Setup",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                OutlinedTextField(
+                    value = tailscaleAuthKeyInput,
+                    onValueChange = { tailscaleAuthKeyInput = it },
+                    label = { Text("Tailscale Auth Key") },
+                    placeholder = { Text("tskey-auth-...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = { viewModel.connectTailscale(tailscaleAuthKeyInput) },
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Text("Connect to Tailnet")
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                TailscaleStatusIndicator(status = uiState.tsnetStatus)
+
+                Spacer(modifier = Modifier.height(32.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Button(onClick = { currentStep = 1 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
+                        Text("Back")
+                    }
+                    Button(onClick = { currentStep = 3 }, modifier = Modifier.weight(1f)) {
+                        Text("Next")
+                    }
+                }
+            }
+
+            3 -> {
+                Text(
                     text = "Server Configuration",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
@@ -1216,16 +1375,26 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
 
                 Spacer(modifier = Modifier.height(32.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Button(onClick = { currentStep = 0 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
+                    Button(
+                        onClick = {
+                            if (isTailnetSelected) {
+                                currentStep = 2
+                            } else {
+                                currentStep = 1
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                    ) {
                         Text("Back")
                     }
-                    Button(onClick = { currentStep = 2 }, modifier = Modifier.weight(1f)) {
+                    Button(onClick = { currentStep = 4 }, modifier = Modifier.weight(1f)) {
                         Text("Next")
                     }
                 }
             }
 
-            2 -> {
+            4 -> {
                 Text(
                     text = if (isDispatcharrMode) "Dispatcharr URL" else "Custom URLs",
                     style = MaterialTheme.typography.headlineSmall,
@@ -1243,31 +1412,6 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Connect to Tailscale Tailnet", color = Color.White)
-                        Switch(
-                            checked = uiState.isTailnetEnabled,
-                            onCheckedChange = { viewModel.setTailnetEnabled(it) }
-                        )
-                    }
-                    if (uiState.isTailnetEnabled) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = uiState.tailscaleAuthKey,
-                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
-                            label = { Text("Tailscale Auth Key") },
-                            placeholder = { Text("tskey-auth-...") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        TailscaleStatusIndicator(status = uiState.tsnetStatus)
-                    }
                 } else {
                     OutlinedTextField(
                         value = m3uInput,
@@ -1286,36 +1430,11 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Connect to Tailscale Tailnet", color = Color.White)
-                        Switch(
-                            checked = uiState.isTailnetEnabled,
-                            onCheckedChange = { viewModel.setTailnetEnabled(it) }
-                        )
-                    }
-                    if (uiState.isTailnetEnabled) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = uiState.tailscaleAuthKey,
-                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
-                            label = { Text("Tailscale Auth Key") },
-                            placeholder = { Text("tskey-auth-...") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        TailscaleStatusIndicator(status = uiState.tsnetStatus)
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Button(onClick = { currentStep = 1 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
+                    Button(onClick = { currentStep = 3 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
                         Text("Back")
                     }
                     Button(

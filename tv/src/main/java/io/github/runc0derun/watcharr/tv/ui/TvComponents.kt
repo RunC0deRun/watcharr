@@ -783,6 +783,7 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
     var dispatcharrUrlInput by remember { mutableStateOf("") }
     var playlistUrlInput by remember { mutableStateOf("") }
     var epgUrlInput by remember { mutableStateOf("") }
+    var tailscaleAuthKeyInput by remember(uiState.tailscaleAuthKey) { mutableStateOf(uiState.tailscaleAuthKey) }
 
     val defaultFocusRequester = remember { FocusRequester() }
     val dispatcharrFocusRequester = remember { FocusRequester() }
@@ -791,6 +792,7 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
     val saveButtonFocusRequester = remember { FocusRequester() }
     val tailnetToggleFocusRequester = remember { FocusRequester() }
     val authKeyFocusRequester = remember { FocusRequester() }
+    val connectTailscaleFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(manualMode) {
         when (manualMode) {
@@ -961,8 +963,8 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                         Spacer(modifier = Modifier.height(12.dp))
 
                         OutlinedTextField(
-                            value = uiState.tailscaleAuthKey,
-                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
+                            value = tailscaleAuthKeyInput,
+                            onValueChange = { tailscaleAuthKeyInput = it },
                             label = { Text("Tailscale Auth Key") },
                             placeholder = { Text("tskey-auth-...") },
                             singleLine = true,
@@ -970,11 +972,11 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                                 .fillMaxWidth()
                                 .focusRequester(authKeyFocusRequester)
                                 .focusProperties {
-                                    down = connectButtonFocusRequester
+                                    down = connectTailscaleFocusRequester
                                 },
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = {
-                                connectButtonFocusRequester.requestFocus()
+                                connectTailscaleFocusRequester.requestFocus()
                             }),
                             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -983,6 +985,20 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                                 unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(
+                            onClick = { viewModel.connectTailscale(tailscaleAuthKeyInput) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(connectTailscaleFocusRequester)
+                                .focusProperties {
+                                    down = connectButtonFocusRequester
+                                }
+                        ) {
+                            Text("Connect to Tailscale")
+                        }
 
                         Spacer(modifier = Modifier.height(12.dp))
                         TailscaleStatusIndicator(status = uiState.tsnetStatus)
@@ -1103,8 +1119,8 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                         Spacer(modifier = Modifier.height(12.dp))
 
                         OutlinedTextField(
-                            value = uiState.tailscaleAuthKey,
-                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
+                            value = tailscaleAuthKeyInput,
+                            onValueChange = { tailscaleAuthKeyInput = it },
                             label = { Text("Tailscale Auth Key") },
                             placeholder = { Text("tskey-auth-...") },
                             singleLine = true,
@@ -1112,11 +1128,11 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                                 .fillMaxWidth()
                                 .focusRequester(authKeyFocusRequester)
                                 .focusProperties {
-                                    down = saveButtonFocusRequester
+                                    down = connectTailscaleFocusRequester
                                 },
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = {
-                                saveButtonFocusRequester.requestFocus()
+                                connectTailscaleFocusRequester.requestFocus()
                             }),
                             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -1125,6 +1141,20 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                                 unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(
+                            onClick = { viewModel.connectTailscale(tailscaleAuthKeyInput) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(connectTailscaleFocusRequester)
+                                .focusProperties {
+                                    down = saveButtonFocusRequester
+                                }
+                        ) {
+                            Text("Connect to Tailscale")
+                        }
 
                         Spacer(modifier = Modifier.height(12.dp))
                         TailscaleStatusIndicator(status = uiState.tsnetStatus)
