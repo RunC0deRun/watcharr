@@ -22,13 +22,18 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
         initPreferences()
 
         viewModelScope.launch {
+            val tailnetFlow = combine(_isTailnetEnabled, _tailscaleAuthKey, _tsnetStatus) { enabled, key, status ->
+                TailnetInfo(enabled, key, status)
+            }
+
             val settingsFlow = combine(
                 _selectedGroup,
                 _isOnboardingCompleted,
                 _useDispatcharr,
-                _dispatcharrUrl
-            ) { selectedGroup, completed, useDispatcharr, dispatcharrUrl ->
-                SettingsInfo(selectedGroup, completed, useDispatcharr, dispatcharrUrl)
+                _dispatcharrUrl,
+                tailnetFlow
+            ) { selectedGroup, completed, useDispatcharr, dispatcharrUrl, tailnet ->
+                SettingsInfo(selectedGroup, completed, useDispatcharr, dispatcharrUrl, tailnet.enabled, tailnet.key, tailnet.status)
             }
 
             combine(
@@ -78,7 +83,10 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
                     epgData = epgData,
                     isOnboardingCompleted = isOnboardingCompleted,
                     useDispatcharr = useDispatcharr,
-                    dispatcharrUrl = dispatcharrUrl
+                    dispatcharrUrl = dispatcharrUrl,
+                    isTailnetEnabled = settingsInfo.isTailnetEnabled,
+                    tailscaleAuthKey = settingsInfo.tailscaleAuthKey,
+                    tsnetStatus = settingsInfo.tsnetStatus
                 )
             }.collect { state ->
                 _uiState.value = state.copy(isInitialized = true)
@@ -146,10 +154,19 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
         }
     }
 
+    private data class TailnetInfo(
+        val enabled: Boolean,
+        val key: String,
+        val status: String
+    )
+
     private data class SettingsInfo(
         val selectedGroup: String?,
         val isOnboardingCompleted: Boolean,
         val useDispatcharr: Boolean,
-        val dispatcharrUrl: String
+        val dispatcharrUrl: String,
+        val isTailnetEnabled: Boolean,
+        val tailscaleAuthKey: String,
+        val tsnetStatus: String
     )
 }

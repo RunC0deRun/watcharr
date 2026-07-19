@@ -11,6 +11,8 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import java.util.concurrent.TimeUnit
 
+import io.github.runc0derun.watcharr.shared.playback.TsnetManager
+
 class EpgSyncWorker(
     context: Context,
     params: WorkerParameters
@@ -19,8 +21,30 @@ class EpgSyncWorker(
     override suspend fun doWork(): Result {
         val epgUrl = inputData.getString(KEY_EPG_URL) ?: return Result.failure()
         
-        val fetcher = EpgFetcher(applicationContext)
+        val context = applicationContext
+        val prefs = context.getSharedPreferences("watcharr_prefs", Context.MODE_PRIVATE)
+        val tailnetEnabled = prefs.getBoolean("tailnet_enabled", false)
+        val tailscaleAuthKey = prefs.getString("tailscale_auth_key", "") ?: ""
+
+        var startedTailscaleLocal = false
+        if (tailnetEnabled && tailscaleAuthKey.isNotEmpty()) {
+            if (!TsnetManager.isEnabled()) {
+                TsnetManager.start(context, tailscaleAuthKey)
+                startedTailscaleLocal = true
+            }
+            val connected = TsnetManager.awaitConnection()
+            if (!connected) {
+                if (startedTailscaleLocal) TsnetManager.stop()
+                return Result.retry()
+            }
+        }
+
+        val fetcher = EpgFetcher(context)
         val result = fetcher.fetchAndSyncEpg(epgUrl)
+        
+        if (startedTailscaleLocal) {
+            TsnetManager.stop()
+        }
         
         return if (result.isSuccess) {
             Result.success()

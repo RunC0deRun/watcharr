@@ -38,20 +38,34 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
                 SetupInfo(qrUrl, status)
             }
 
+            val tailnetFlow = combine(_isTailnetEnabled, _tailscaleAuthKey, _tsnetStatus) { enabled, key, status ->
+                TailnetInfo(enabled, key, status)
+            }
+
             val settingsFlow = combine(
                 _selectedGroup,
                 _isOnboardingCompleted,
                 _useDispatcharr,
                 _dispatcharrUrl,
-                setupFlow
-            ) { selectedGroup, completed, useDispatcharr, dispatcharrUrl, setupInfo ->
+                setupFlow,
+                tailnetFlow
+            ) { args ->
+                val selectedGroup = args[0] as String?
+                val completed = args[1] as Boolean
+                val useDispatcharr = args[2] as Boolean
+                val dispatcharrUrl = args[3] as String
+                val setupInfo = args[4] as SetupInfo
+                val tailnet = args[5] as TailnetInfo
                 SettingsInfo(
                     selectedGroup = selectedGroup,
                     isOnboardingCompleted = completed,
                     useDispatcharr = useDispatcharr,
                     dispatcharrUrl = dispatcharrUrl,
                     setupQrUrl = setupInfo.setupQrUrl,
-                    setupStatus = setupInfo.setupStatus
+                    setupStatus = setupInfo.setupStatus,
+                    isTailnetEnabled = tailnet.enabled,
+                    tailscaleAuthKey = tailnet.key,
+                    tsnetStatus = tailnet.status
                 )
             }
 
@@ -106,7 +120,10 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
                     setupQrUrl = setupQrUrl,
                     setupStatus = setupStatus,
                     useDispatcharr = useDispatcharr,
-                    dispatcharrUrl = dispatcharrUrl
+                    dispatcharrUrl = dispatcharrUrl,
+                    isTailnetEnabled = settingsInfo.isTailnetEnabled,
+                    tailscaleAuthKey = settingsInfo.tailscaleAuthKey,
+                    tsnetStatus = settingsInfo.tsnetStatus
                 )
             }.collect { state ->
                 _uiState.value = state.copy(isInitialized = true)
@@ -188,12 +205,21 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
         val setupStatus: String
     )
 
+    private data class TailnetInfo(
+        val enabled: Boolean,
+        val key: String,
+        val status: String
+    )
+
     private data class SettingsInfo(
         val selectedGroup: String?,
         val isOnboardingCompleted: Boolean,
         val useDispatcharr: Boolean,
         val dispatcharrUrl: String,
         val setupQrUrl: String,
-        val setupStatus: String
+        val setupStatus: String,
+        val isTailnetEnabled: Boolean,
+        val tailscaleAuthKey: String,
+        val tsnetStatus: String
     )
 }
