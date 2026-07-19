@@ -42,6 +42,10 @@ import kotlin.time.Duration.Companion.seconds
 import java.time.format.DateTimeFormatter
 import java.time.ZoneId
 import java.time.Instant
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
 
 @Composable
 fun WatcharrLogo(modifier: Modifier = Modifier) {
@@ -800,6 +804,56 @@ fun EpgProgramTimelineItem(program: ProgramEntity, onClick: () -> Unit) {
 }
 
 @Composable
+fun TailscaleStatusIndicator(status: String, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "Pulse")
+    val alpha by transition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "Alpha"
+    )
+
+    val (color, text, isPulsing) = when {
+        status.startsWith("Error", ignoreCase = true) -> Triple(Color(0xFFE57373), status, false)
+        status == "Authenticating" -> Triple(Color(0xFFFFB74D), "Authenticating with Tailnet...", true)
+        status == "Connected" -> Triple(Color(0xFF81C784), "Connected to Tailnet", false)
+        status == "Dialing Stream" -> Triple(Color(0xFF4FC3F7), "Streaming via Tailnet...", true)
+        status.isEmpty() -> Triple(Color.Gray, "Tailnet Node Stopped", false)
+        else -> Triple(Color(0xFFFFB74D), status, true)
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(color.copy(alpha = 0.15f), shape = RoundedCornerShape(8.dp))
+            .border(1.dp, color.copy(alpha = 0.3f), shape = RoundedCornerShape(8.dp))
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .graphicsLayer {
+                    if (isPulsing) {
+                        this.alpha = alpha
+                    }
+                }
+                .background(color, shape = CircleShape)
+        )
+        Text(
+            text = text,
+            color = Color.White,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
 fun MobileOnboardingWizard(viewModel: MobileViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var currentStep by remember { mutableIntStateOf(0) }
@@ -931,6 +985,31 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Connect to Tailscale Tailnet", color = Color.White)
+                        Switch(
+                            checked = uiState.isTailnetEnabled,
+                            onCheckedChange = { viewModel.setTailnetEnabled(it) }
+                        )
+                    }
+                    if (uiState.isTailnetEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = uiState.tailscaleAuthKey,
+                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
+                            label = { Text("Tailscale Auth Key") },
+                            placeholder = { Text("tskey-auth-...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TailscaleStatusIndicator(status = uiState.tsnetStatus)
+                    }
                     Spacer(modifier = Modifier.height(24.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Button(onClick = { manualMode = null }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
@@ -976,6 +1055,31 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Connect to Tailscale Tailnet", color = Color.White)
+                        Switch(
+                            checked = uiState.isTailnetEnabled,
+                            onCheckedChange = { viewModel.setTailnetEnabled(it) }
+                        )
+                    }
+                    if (uiState.isTailnetEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = uiState.tailscaleAuthKey,
+                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
+                            label = { Text("Tailscale Auth Key") },
+                            placeholder = { Text("tskey-auth-...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TailscaleStatusIndicator(status = uiState.tsnetStatus)
+                    }
                     Spacer(modifier = Modifier.height(24.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Button(onClick = { manualMode = null }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
@@ -1139,6 +1243,31 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Connect to Tailscale Tailnet", color = Color.White)
+                        Switch(
+                            checked = uiState.isTailnetEnabled,
+                            onCheckedChange = { viewModel.setTailnetEnabled(it) }
+                        )
+                    }
+                    if (uiState.isTailnetEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = uiState.tailscaleAuthKey,
+                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
+                            label = { Text("Tailscale Auth Key") },
+                            placeholder = { Text("tskey-auth-...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TailscaleStatusIndicator(status = uiState.tsnetStatus)
+                    }
                 } else {
                     OutlinedTextField(
                         value = m3uInput,
@@ -1157,6 +1286,31 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Connect to Tailscale Tailnet", color = Color.White)
+                        Switch(
+                            checked = uiState.isTailnetEnabled,
+                            onCheckedChange = { viewModel.setTailnetEnabled(it) }
+                        )
+                    }
+                    if (uiState.isTailnetEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = uiState.tailscaleAuthKey,
+                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
+                            label = { Text("Tailscale Auth Key") },
+                            placeholder = { Text("tskey-auth-...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TailscaleStatusIndicator(status = uiState.tsnetStatus)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))

@@ -43,6 +43,10 @@ import kotlin.time.Duration.Companion.milliseconds
 import java.time.format.DateTimeFormatter
 import java.time.ZoneId
 import java.time.Instant
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material3.Switch
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -722,6 +726,56 @@ private fun formatTimeRange(startMs: Long, stopMs: Long): String {
     return "$startStr - $stopStr"
 }
 
+@Composable
+fun TailscaleStatusIndicator(status: String, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "Pulse")
+    val alpha by transition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "Alpha"
+    )
+
+    val (color, text, isPulsing) = when {
+        status.startsWith("Error", ignoreCase = true) -> Triple(Color(0xFFE57373), status, false)
+        status == "Authenticating" -> Triple(Color(0xFFFFB74D), "Authenticating with Tailnet...", true)
+        status == "Connected" -> Triple(Color(0xFF81C784), "Connected to Tailnet", false)
+        status == "Dialing Stream" -> Triple(Color(0xFF4FC3F7), "Streaming via Tailnet...", true)
+        status.isEmpty() -> Triple(Color.Gray, "Tailnet Node Stopped", false)
+        else -> Triple(Color(0xFFFFB74D), status, true)
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(color.copy(alpha = 0.15f), shape = RoundedCornerShape(8.dp))
+            .border(1.dp, color.copy(alpha = 0.3f), shape = RoundedCornerShape(8.dp))
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .graphicsLayer {
+                    if (isPulsing) {
+                        this.alpha = alpha
+                    }
+                }
+                .background(color, shape = CircleShape)
+        )
+        Text(
+            text = text,
+            color = Color.White,
+            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
@@ -735,6 +789,8 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
     val customFocusRequester = remember { FocusRequester() }
     val connectButtonFocusRequester = remember { FocusRequester() }
     val saveButtonFocusRequester = remember { FocusRequester() }
+    val tailnetToggleFocusRequester = remember { FocusRequester() }
+    val authKeyFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(manualMode) {
         when (manualMode) {
@@ -859,11 +915,11 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                             .fillMaxWidth()
                             .focusRequester(dispatcharrFocusRequester)
                             .focusProperties {
-                                down = connectButtonFocusRequester
+                                down = tailnetToggleFocusRequester
                             },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = {
-                            connectButtonFocusRequester.requestFocus()
+                            tailnetToggleFocusRequester.requestFocus()
                         }),
                         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                             focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -872,6 +928,65 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                             unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    var isTailnetFocused by remember { mutableStateOf(false) }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(tailnetToggleFocusRequester)
+                            .onFocusChanged { isTailnetFocused = it.isFocused }
+                            .focusProperties {
+                                down = if (uiState.isTailnetEnabled) authKeyFocusRequester else connectButtonFocusRequester
+                            }
+                            .clickable { viewModel.setTailnetEnabled(!uiState.isTailnetEnabled) }
+                            .background(
+                                if (isTailnetFocused) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                                else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Connect to Tailscale Tailnet", color = MaterialTheme.colorScheme.onSurface)
+                        Switch(
+                            checked = uiState.isTailnetEnabled,
+                            onCheckedChange = { viewModel.setTailnetEnabled(it) }
+                        )
+                    }
+
+                    if (uiState.isTailnetEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = uiState.tailscaleAuthKey,
+                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
+                            label = { Text("Tailscale Auth Key") },
+                            placeholder = { Text("tskey-auth-...") },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(authKeyFocusRequester)
+                                .focusProperties {
+                                    down = connectButtonFocusRequester
+                                },
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = {
+                                connectButtonFocusRequester.requestFocus()
+                            }),
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TailscaleStatusIndicator(status = uiState.tsnetStatus)
+                    }
 
                     Spacer(modifier = Modifier.height(20.dp))
                     Row(
@@ -942,11 +1057,11 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusProperties {
-                                down = saveButtonFocusRequester
+                                down = tailnetToggleFocusRequester
                             },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = {
-                            saveButtonFocusRequester.requestFocus()
+                            tailnetToggleFocusRequester.requestFocus()
                         }),
                         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                             focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -955,6 +1070,65 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                             unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    var isTailnetFocused by remember { mutableStateOf(false) }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(tailnetToggleFocusRequester)
+                            .onFocusChanged { isTailnetFocused = it.isFocused }
+                            .focusProperties {
+                                down = if (uiState.isTailnetEnabled) authKeyFocusRequester else saveButtonFocusRequester
+                            }
+                            .clickable { viewModel.setTailnetEnabled(!uiState.isTailnetEnabled) }
+                            .background(
+                                if (isTailnetFocused) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                                else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Connect to Tailscale Tailnet", color = MaterialTheme.colorScheme.onSurface)
+                        Switch(
+                            checked = uiState.isTailnetEnabled,
+                            onCheckedChange = { viewModel.setTailnetEnabled(it) }
+                        )
+                    }
+
+                    if (uiState.isTailnetEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = uiState.tailscaleAuthKey,
+                            onValueChange = { viewModel.setTailscaleAuthKey(it) },
+                            label = { Text("Tailscale Auth Key") },
+                            placeholder = { Text("tskey-auth-...") },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(authKeyFocusRequester)
+                                .focusProperties {
+                                    down = saveButtonFocusRequester
+                                },
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = {
+                                saveButtonFocusRequester.requestFocus()
+                            }),
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        TailscaleStatusIndicator(status = uiState.tsnetStatus)
+                    }
 
                     Spacer(modifier = Modifier.height(20.dp))
                     Row(
