@@ -11,8 +11,8 @@ android {
         applicationId = "io.github.runc0derun.watcharr"
         minSdk = 26
         targetSdk = 37
-        versionCode = 2003
-        versionName = "0.2"
+        versionCode = 2004
+        versionName = "0.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

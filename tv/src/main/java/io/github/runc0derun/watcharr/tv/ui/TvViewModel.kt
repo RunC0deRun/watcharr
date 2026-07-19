@@ -49,7 +49,13 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
                 _dispatcharrUrl,
                 setupFlow,
                 tailnetFlow
-            ) { selectedGroup, completed, useDispatcharr, dispatcharrUrl, setupInfo, tailnet ->
+            ) { args ->
+                val selectedGroup = args[0] as String?
+                val completed = args[1] as Boolean
+                val useDispatcharr = args[2] as Boolean
+                val dispatcharrUrl = args[3] as String
+                val setupInfo = args[4] as SetupInfo
+                val tailnet = args[5] as TailnetInfo
                 SettingsInfo(
                     selectedGroup = selectedGroup,
                     isOnboardingCompleted = completed,
