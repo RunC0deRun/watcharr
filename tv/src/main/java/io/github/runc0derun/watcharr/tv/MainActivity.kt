@@ -2,6 +2,7 @@ package io.github.runc0derun.watcharr.tv
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
@@ -85,6 +86,7 @@ fun TvMainScreen(viewModel: TvViewModel) {
     val setupPlaylistFocusRequester = remember { FocusRequester() }
     val playerFocusRequester = remember { FocusRequester() }
     
+    var selectedTab by remember { mutableStateOf(TvTab.CHANNELS) }
     var showSidebar by remember { mutableStateOf(false) }
     var showGuide by remember { mutableStateOf(false) }
     var showControls by remember { mutableStateOf(false) }
@@ -108,6 +110,10 @@ fun TvMainScreen(viewModel: TvViewModel) {
             .background(MaterialTheme.colorScheme.background)
     ) {
         if (playerActive) {
+            BackHandler(enabled = !showSidebar && !showGuide && !showControls && !showStats && selectedProgramForDetail == null) {
+                viewModel.playerEngine.stop()
+            }
+
             var timeBehindLive by remember { mutableLongStateOf(0L) }
             var playheadTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
             
@@ -280,7 +286,9 @@ fun TvMainScreen(viewModel: TvViewModel) {
             }
         } else {
             // Dashboard Layout (No Video Active)
-            var selectedTab by remember { mutableStateOf(TvTab.CHANNELS) }
+            BackHandler(enabled = selectedTab != TvTab.CHANNELS && selectedProgramForDetail == null) {
+                selectedTab = TvTab.CHANNELS
+            }
 
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Navigation Menu Bar
