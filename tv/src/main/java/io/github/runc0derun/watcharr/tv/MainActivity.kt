@@ -343,6 +343,11 @@ fun TvMainScreen(viewModel: TvViewModel) {
                 onDismiss = {
                     selectedProgramForDetail = null
                     selectedChannelForDetail = null
+                },
+                onPlayChannel = { ch ->
+                    selectedProgramForDetail = null
+                    selectedChannelForDetail = null
+                    viewModel.handleIntent(PlaybackIntent.SelectChannel(ch))
                 }
             )
         }

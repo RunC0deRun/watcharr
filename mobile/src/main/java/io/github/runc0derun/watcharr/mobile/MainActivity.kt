@@ -27,7 +27,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
 import io.github.runc0derun.watcharr.mobile.ui.*
+import io.github.runc0derun.watcharr.shared.data.db.ChannelEntity
 import io.github.runc0derun.watcharr.shared.data.db.ProgramEntity
+import io.github.runc0derun.watcharr.shared.data.epg.EpgMatcher
 import io.github.runc0derun.watcharr.shared.mvi.PlaybackIntent
 import io.github.runc0derun.watcharr.shared.mvi.PlaybackSideEffect
 import io.github.runc0derun.watcharr.shared.mvi.PlaybackState
@@ -116,6 +118,7 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
     var isPlayerFullscreen by rememberSaveable { mutableStateOf(false) }
     var showChannelsList by rememberSaveable { mutableStateOf(true) }
     var detailedProgram by remember { mutableStateOf<ProgramEntity?>(null) }
+    var detailedChannel by remember { mutableStateOf<ChannelEntity?>(null) }
 
     val context = LocalContext.current
 
@@ -318,6 +321,7 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                                 },
                                 onSelectProgramDetail = { program, channel ->
                                     detailedProgram = program
+                                    detailedChannel = channel
                                 }
                             )
                             1 -> MobileFullEpgGuide(
@@ -327,6 +331,7 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                                 },
                                 onSelectProgramDetail = { program, channel ->
                                     detailedProgram = program
+                                    detailedChannel = channel
                                 }
                             )
                             2 -> MobileSettingsPanel(
@@ -355,7 +360,10 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                                 ActiveChannelEpgGuide(
                                     uiState = uiState,
                                     modifier = Modifier.fillMaxSize(),
-                                    onProgramClick = { detailedProgram = it }
+                                    onProgramClick = { program ->
+                                        detailedProgram = program
+                                        detailedChannel = (uiState.playbackState as? PlaybackState.Playing)?.channel
+                                    }
                                 )
                             }
                         } else {
@@ -364,7 +372,10 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                                 ActiveChannelEpgGuide(
                                     uiState = uiState,
                                     modifier = Modifier.weight(1f),
-                                    onProgramClick = { detailedProgram = it }
+                                    onProgramClick = { program ->
+                                        detailedProgram = program
+                                        detailedChannel = (uiState.playbackState as? PlaybackState.Playing)?.channel
+                                    }
                                 )
                                 TextButton(
                                     onClick = { showChannelsList = true },
@@ -438,10 +449,18 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
 
     // Detailed Program dialog
     detailedProgram?.let { program ->
-        val channelName = (uiState.playbackState as? PlaybackState.Playing)?.channel?.name ?: ""
+        val channel = detailedChannel ?: uiState.channels.firstOrNull {
+            EpgMatcher.isMatch(it.tvgId, it.name, program.channelId) || it.url == program.channelId
+        }
+        val channelName = channel?.name ?: (uiState.playbackState as? PlaybackState.Playing)?.channel?.name ?: ""
+        val now = System.currentTimeMillis()
+        val isLive = now in program.start..program.stop
 
         AlertDialog(
-            onDismissRequest = { detailedProgram = null },
+            onDismissRequest = {
+                detailedProgram = null
+                detailedChannel = null
+            },
             title = {
                 Column {
                     Text(
@@ -460,12 +479,31 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Time: ${formatTimeRange(program.start, program.stop)}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Time: ${formatTimeRange(program.start, program.stop)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (isLive) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = "LIVE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
                     val desc = program.desc
                     if (!desc.isNullOrEmpty()) {
                         Text(
@@ -483,10 +521,39 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                 }
             },
             confirmButton = {
-                Button(onClick = { detailedProgram = null }) {
-                    Text("Close")
+                if (isLive && channel != null) {
+                    Button(
+                        onClick = {
+                            detailedProgram = null
+                            detailedChannel = null
+                            viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
+                        }
+                    ) {
+                        Text("▶ Start Playing")
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            detailedProgram = null
+                            detailedChannel = null
+                        }
+                    ) {
+                        Text("Close")
+                    }
                 }
-            }
+            },
+            dismissButton = if (isLive && channel != null) {
+                {
+                    TextButton(
+                        onClick = {
+                            detailedProgram = null
+                            detailedChannel = null
+                        }
+                    ) {
+                        Text("Close")
+                    }
+                }
+            } else null
         )
     }
 }
