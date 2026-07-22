@@ -860,7 +860,6 @@ fun TailscaleStatusIndicator(status: String, modifier: Modifier = Modifier) {
 fun MobileOnboardingWizard(viewModel: MobileViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var currentStep by remember { mutableIntStateOf(0) }
-    var manualStep by remember { mutableIntStateOf(0) }
     var isDispatcharrMode by remember { mutableStateOf(true) }
     var dispatcharrInput by remember { mutableStateOf("") }
     var m3uInput by remember { mutableStateOf("") }
@@ -870,290 +869,6 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
     var tailscaleAuthKeyInput by remember(uiState.tailscaleAuthKey) { mutableStateOf(uiState.tailscaleAuthKey) }
 
     val context = LocalContext.current
-    val containerSize = LocalWindowInfo.current.containerSize
-    val density = LocalDensity.current
-    val isAutomotive = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_AUTOMOTIVE)
-    val isTablet = with(density) { containerSize.width.toDp() } >= 600.dp && !isAutomotive
-
-    if (isTablet && !uiState.isLoadingPlaylist && !uiState.isLoadingEpg) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(24.dp),
-            horizontalArrangement = Arrangement.spacedBy(24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .weight(1.2f)
-                    .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f), shape = RoundedCornerShape(16.dp))
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "Pair Android TV",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "Scan the QR code displayed on your Android TV setup screen to automatically pair and transfer configuration.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.secondary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                Button(
-                    onClick = {
-                        try {
-                            val scanner = GmsBarcodeScanning.getClient(context)
-                            scanner.startScan()
-                                .addOnSuccessListener { barcode ->
-                                    val raw = barcode.rawValue ?: ""
-                                    if (raw.isNotEmpty() && raw.startsWith("http") && raw.contains("/setup")) {
-                                        viewModel.sendConfigToTv(
-                                            tvSetupUrl = raw,
-                                            onSuccess = {
-                                                Toast.makeText(context, "Configuration successfully sent to TV paired screen!", Toast.LENGTH_SHORT).show()
-                                            },
-                                            onError = { err ->
-                                                Toast.makeText(context, "Pairing server rejected pairing: $err", Toast.LENGTH_LONG).show()
-                                            }
-                                        )
-                                    }
-                                }
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Scanner unavailable: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(0.8f).height(50.dp)
-                ) {
-                    Text("Scan TV Setup QR Code")
-                }
-            }
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f), shape = RoundedCornerShape(16.dp))
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                when (manualStep) {
-                    0 -> {
-                        Text(
-                            text = "Manual Setup",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Configure your connection URLs directly on this device.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.secondary,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Button(
-                            onClick = {
-                                isDispatcharrMode = true
-                                manualStep = 1
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Use Dispatcharr Server")
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = {
-                                isDispatcharrMode = false
-                                manualStep = 1
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Enter Custom URLs")
-                        }
-                    }
-                    1 -> {
-                        Text(
-                            text = "Tailscale Tailnet",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { isTailnetSelected = true },
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isTailnetSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            border = if (isTailnetSelected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Yes, on a Tailnet", fontWeight = FontWeight.Bold, color = Color.White)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("My server/sources are hosted on a private Tailscale network.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { isTailnetSelected = false },
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (!isTailnetSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            border = if (!isTailnetSelected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("No, standard network", fontWeight = FontWeight.Bold, color = Color.White)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("Connect directly via local IP or public internet URL.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Button(onClick = { manualStep = 0 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
-                                Text("Back")
-                            }
-                            Button(
-                                onClick = {
-                                    if (isTailnetSelected) {
-                                        manualStep = 2
-                                    } else {
-                                        viewModel.setTailnetEnabled(false)
-                                        manualStep = 3
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Next")
-                            }
-                        }
-                    }
-                    2 -> {
-                        Text(
-                            text = "Tailscale Setup",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        OutlinedTextField(
-                            value = tailscaleAuthKeyInput,
-                            onValueChange = { tailscaleAuthKeyInput = it },
-                            label = { Text("Tailscale Auth Key") },
-                            placeholder = { Text("tskey-auth-...") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = { viewModel.connectTailscale(tailscaleAuthKeyInput) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Connect")
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        TailscaleStatusIndicator(status = uiState.tsnetStatus)
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Button(onClick = { manualStep = 1 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
-                                Text("Back")
-                            }
-                            Button(onClick = { manualStep = 3 }, modifier = Modifier.weight(1f)) {
-                                Text("Next")
-                            }
-                        }
-                    }
-                    3 -> {
-                        Text(
-                            text = if (isDispatcharrMode) "Dispatcharr Server" else "Custom URLs",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        if (isDispatcharrMode) {
-                            OutlinedTextField(
-                                value = dispatcharrInput,
-                                onValueChange = { dispatcharrInput = it },
-                                label = { Text("Server URL") },
-                                placeholder = { Text("http://192.168.1.100:8080") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else {
-                            OutlinedTextField(
-                                value = m3uInput,
-                                onValueChange = { m3uInput = it },
-                                label = { Text("M3U Playlist URL") },
-                                placeholder = { Text("http://...") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value = epgInput,
-                                onValueChange = { epgInput = it },
-                                label = { Text("EPG XMLTV URL (Optional)") },
-                                placeholder = { Text("http://...") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Button(
-                                onClick = {
-                                    if (isTailnetSelected) {
-                                        manualStep = 2
-                                    } else {
-                                        manualStep = 1
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
-                            ) {
-                                Text("Back")
-                            }
-                            Button(
-                                onClick = {
-                                    if (isDispatcharrMode) {
-                                        if (dispatcharrInput.isNotEmpty()) {
-                                            val m3u = "$dispatcharrInput/output/m3u"
-                                            val epg = "$dispatcharrInput/output/epg"
-                                            viewModel.completeOnboarding(m3u, epg, dispatcharrInput, true)
-                                        }
-                                    } else {
-                                        if (m3uInput.isNotEmpty()) {
-                                            viewModel.completeOnboarding(m3uInput, epgInput, null, false)
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                enabled = if (isDispatcharrMode) dispatcharrInput.isNotEmpty() else m3uInput.isNotEmpty()
-                            ) {
-                                Text("Load")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return
-    }
 
     if (uiState.isLoadingPlaylist || uiState.isLoadingEpg) {
         Box(
@@ -1186,14 +901,20 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
         return
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
     ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 560.dp)
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
         when (currentStep) {
             0 -> {
                 Text(
@@ -1463,6 +1184,7 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
             }
         }
     }
+}
 }
 
 data class CarouselItem(val program: ProgramEntity, val channel: ChannelEntity)
