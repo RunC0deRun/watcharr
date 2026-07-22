@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.painterResource
 import io.github.runc0derun.watcharr.mobile.R
@@ -1920,6 +1923,12 @@ fun MobileFullEpgGuide(
     onSelectChannel: (ChannelEntity) -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {
+    val timelineStart = remember { System.currentTimeMillis() }
+
+    var globalScrollOffsetPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current.density
+    var scrollingChannelUrl by remember { mutableStateOf<String?>(null) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -1945,6 +1954,69 @@ fun MobileFullEpgGuide(
 
         items(uiState.channels, key = { it.url }) { channel ->
             val programs = uiState.epgData[channel.url] ?: emptyList()
+            
+            val rowItems = remember(programs) {
+                val list = mutableListOf<TvTimelineItem>()
+                if (programs.isNotEmpty()) {
+                    programs.forEachIndexed { index, program ->
+                        if (index == 0) {
+                            if (program.start > timelineStart) {
+                                val gapMin = (program.start - timelineStart) / 60000
+                                if (gapMin > 0) {
+                                    list.add(TvTimelineItem.Gap(gapMin))
+                                }
+                            }
+                        } else {
+                            val prev = programs[index - 1]
+                            if (program.start > prev.stop) {
+                                val gapMin = (program.start - prev.stop) / 60000
+                                if (gapMin > 0) {
+                                    list.add(TvTimelineItem.Gap(gapMin))
+                                }
+                            }
+                        }
+                        
+                        val durationMin = if (index == 0 && program.start < timelineStart) {
+                            (program.stop - timelineStart) / 60000
+                        } else {
+                            (program.stop - program.start) / 60000
+                        }
+                        if (durationMin > 0) {
+                            list.add(TvTimelineItem.ProgramCard(program, durationMin))
+                        }
+                    }
+                }
+                list
+            }
+
+            val rowState = rememberLazyListState()
+            val isDragged by rowState.interactionSource.collectIsDraggedAsState()
+            val isRowDriver = channel.url == scrollingChannelUrl
+
+            LaunchedEffect(isDragged) {
+                if (isDragged) {
+                    scrollingChannelUrl = channel.url
+                }
+            }
+
+            LaunchedEffect(rowState, isRowDriver) {
+                snapshotFlow { rowState.firstVisibleItemIndex to rowState.firstVisibleItemScrollOffset }
+                    .distinctUntilChanged()
+                    .collect { (index, offset) ->
+                        if (isRowDriver) {
+                            val absOffset = getAbsoluteScrollOffsetPx(rowItems, index, offset, density)
+                            globalScrollOffsetPx = absOffset
+                        }
+                    }
+            }
+
+            LaunchedEffect(globalScrollOffsetPx, isRowDriver) {
+                if (!isRowDriver) {
+                    val (targetIndex, targetOffset) = getLazyListScrollStateForOffset(rowItems, globalScrollOffsetPx, density)
+                    rowState.scrollToItem(targetIndex, targetOffset)
+                }
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1998,7 +2070,7 @@ fun MobileFullEpgGuide(
                     }
                 }
 
-                if (programs.isEmpty()) {
+                if (rowItems.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -2010,44 +2082,53 @@ fun MobileFullEpgGuide(
                     }
                 } else {
                     LazyRow(
+                        state = rowState,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(0.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        items(programs, key = { it.channelId + "_" + it.start }) { program ->
-                            val durationMin = (program.stop - program.start) / 60000
-                            val cardWidth = (durationMin * 5).coerceIn(160L, 600L).toInt().dp
+                        items(rowItems) { item ->
+                            when (item) {
+                                is TvTimelineItem.Gap -> {
+                                    Spacer(modifier = Modifier.width((item.durationMin * MINUTES_TO_DP).toInt().dp))
+                                }
+                                is TvTimelineItem.ProgramCard -> {
+                                    val program = item.program
+                                    val cardWidth = (item.durationMin * MINUTES_TO_DP).toInt().dp
 
-                            Card(
-                                modifier = Modifier
-                                    .width(cardWidth)
-                                    .fillMaxHeight()
-                                    .clickable { onSelectProgramDetail(program, channel) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
-                                )
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxSize().padding(10.dp),
-                                    verticalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = program.title,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = formatTimeRange(program.start, program.stop),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.secondary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                                    Card(
+                                        modifier = Modifier
+                                            .width(cardWidth)
+                                            .fillMaxHeight()
+                                            .padding(end = 8.dp)
+                                            .clickable { onSelectProgramDetail(program, channel) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
+                                        )
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxSize().padding(10.dp),
+                                            verticalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = program.title,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = formatTimeRange(program.start, program.stop),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.secondary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2335,4 +2416,54 @@ fun MobileStatsRow(label: String, value: String) {
     }
 }
 
+sealed class TvTimelineItem {
+    data class Gap(val durationMin: Long) : TvTimelineItem()
+    data class ProgramCard(val program: ProgramEntity, val durationMin: Long) : TvTimelineItem()
+}
 
+private const val MINUTES_TO_DP = 5
+
+private fun getAbsoluteScrollOffsetPx(
+    rowItems: List<TvTimelineItem>,
+    firstVisibleItemIndex: Int,
+    firstVisibleItemScrollOffset: Int,
+    density: Float
+): Int {
+    var accumulatedPx = 0
+    for (i in 0 until firstVisibleItemIndex) {
+        if (i >= rowItems.size) break
+        val item = rowItems[i]
+        val durationMin = when (item) {
+            is TvTimelineItem.Gap -> item.durationMin
+            is TvTimelineItem.ProgramCard -> item.durationMin
+        }
+        val widthDp = durationMin * MINUTES_TO_DP
+        val widthPx = (widthDp * density).toInt()
+        accumulatedPx += widthPx
+    }
+    return accumulatedPx + firstVisibleItemScrollOffset
+}
+
+private fun getLazyListScrollStateForOffset(
+    rowItems: List<TvTimelineItem>,
+    globalScrollOffsetPx: Int,
+    density: Float
+): Pair<Int, Int> {
+    if (rowItems.isEmpty()) return Pair(0, 0)
+    var accumulatedPx = 0
+    rowItems.forEachIndexed { index, item ->
+        val durationMin = when (item) {
+            is TvTimelineItem.Gap -> item.durationMin
+            is TvTimelineItem.ProgramCard -> item.durationMin
+        }
+        val widthDp = durationMin * MINUTES_TO_DP
+        val widthPx = (widthDp * density).toInt()
+        
+        if (accumulatedPx + widthPx > globalScrollOffsetPx) {
+            val offsetPx = globalScrollOffsetPx - accumulatedPx
+            return Pair(index, offsetPx)
+        }
+        accumulatedPx += widthPx
+    }
+    return Pair(rowItems.lastIndex, 0)
+}

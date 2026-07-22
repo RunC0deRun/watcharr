@@ -48,7 +48,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.Switch
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Size
@@ -72,6 +74,11 @@ import io.github.runc0derun.watcharr.shared.data.db.ProgramEntity
 import io.github.runc0derun.watcharr.shared.mvi.*
 import io.github.runc0derun.watcharr.tv.R
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.foundation.gestures.BringIntoViewSpec
 
 @Composable
 fun WatcharrLogo(modifier: Modifier = Modifier) {
@@ -1935,17 +1942,43 @@ fun TvChannelGridItem(
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun TvFullEpgGuide(
     uiState: IptvUiState,
     onSelectChannel: (ChannelEntity) -> Unit,
     onSelectProgramDetail: (ProgramEntity, ChannelEntity) -> Unit
 ) {
+    val timelineStart = remember { System.currentTimeMillis() }
+
+    var globalScrollOffsetPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current.density
+    var referenceTime by remember { mutableLongStateOf(timelineStart) }
+    var userHorizontalScrolling by remember { mutableStateOf(false) }
+
+    val activeChannel = (uiState.playbackState as? PlaybackState.Playing)?.channel
+    val activeChannelUrl = activeChannel?.url ?: uiState.channels.firstOrNull()?.url
+    var focusedChannelUrl by remember(uiState.channels, activeChannel) {
+        mutableStateOf(activeChannelUrl)
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(24.dp)
+            .onPreviewKeyEvent { keyEvent ->
+                if (keyEvent.type == KeyEventType.KeyDown) {
+                    when (keyEvent.key) {
+                        Key.DirectionLeft, Key.DirectionRight -> {
+                            userHorizontalScrolling = true
+                        }
+                        Key.DirectionUp, Key.DirectionDown -> {
+                            userHorizontalScrolling = false
+                        }
+                    }
+                }
+                false
+            },
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
@@ -1967,6 +2000,72 @@ fun TvFullEpgGuide(
         
         items(uiState.channels, key = { it.url }) { channel ->
             val programs = uiState.epgData[channel.url] ?: emptyList()
+            
+            val rowItems = remember(programs) {
+                val list = mutableListOf<TvTimelineItem>()
+                if (programs.isNotEmpty()) {
+                    programs.forEachIndexed { index, program ->
+                        if (index == 0) {
+                            if (program.start > timelineStart) {
+                                val gapMin = (program.start - timelineStart) / 60000
+                                if (gapMin > 0) {
+                                    list.add(TvTimelineItem.Gap(gapMin))
+                                }
+                            }
+                        } else {
+                            val prev = programs[index - 1]
+                            if (program.start > prev.stop) {
+                                val gapMin = (program.start - prev.stop) / 60000
+                                if (gapMin > 0) {
+                                    list.add(TvTimelineItem.Gap(gapMin))
+                                }
+                            }
+                        }
+                        
+                        val durationMin = if (index == 0 && program.start < timelineStart) {
+                            (program.stop - timelineStart) / 60000
+                        } else {
+                            (program.stop - program.start) / 60000
+                        }
+                        if (durationMin > 0) {
+                            list.add(TvTimelineItem.ProgramCard(program, durationMin))
+                        }
+                    }
+                }
+                list
+            }
+
+            val isRowFocused = channel.url == focusedChannelUrl
+            val rowState = rememberLazyListState()
+
+            val currentRowItems by rememberUpdatedState(rowItems)
+            val currentUserHorizontalScrolling by rememberUpdatedState(userHorizontalScrolling)
+
+            LaunchedEffect(isRowFocused) {
+                if (isRowFocused) {
+                    snapshotFlow { rowState.firstVisibleItemIndex to rowState.firstVisibleItemScrollOffset }
+                        .distinctUntilChanged()
+                        .drop(1)
+                        .collect { (index, offset) ->
+                            if (currentUserHorizontalScrolling) {
+                                val absOffset = getAbsoluteScrollOffsetPx(currentRowItems, index, offset, density)
+                                globalScrollOffsetPx = absOffset
+                                
+                                val centerOffsetDp = (absOffset / density) + 378f
+                                val centerOffsetMinutes = centerOffsetDp / MINUTES_TO_DP
+                                referenceTime = timelineStart + (centerOffsetMinutes * 60000).toLong()
+                            }
+                        }
+                }
+            }
+
+            LaunchedEffect(globalScrollOffsetPx, isRowFocused, rowItems) {
+                if (!isRowFocused) {
+                    val (targetIndex, targetOffset) = getLazyListScrollStateForOffset(rowItems, globalScrollOffsetPx, density)
+                    rowState.scrollToItem(targetIndex, targetOffset)
+                }
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1979,7 +2078,12 @@ fun TvFullEpgGuide(
                     modifier = Modifier
                         .width(140.dp)
                         .fillMaxHeight()
-                        .onFocusChanged { isChFocused = it.isFocused }
+                        .onFocusChanged { 
+                            isChFocused = it.isFocused 
+                            if (it.isFocused) {
+                                focusedChannelUrl = channel.url
+                            }
+                        }
                         .clickable { onSelectChannel(channel) }
                         .background(
                             color = if (isChFocused) MaterialTheme.colorScheme.primary 
@@ -2025,7 +2129,7 @@ fun TvFullEpgGuide(
                     }
                 }
                 
-                if (programs.isEmpty()) {
+                if (rowItems.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -2036,55 +2140,93 @@ fun TvFullEpgGuide(
                         Text("No program data available", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    LazyRow(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        items(programs, key = { it.channelId + "_" + it.start }) { program ->
-                            val durationMin = (program.stop - program.start) / 60000
-                            val cardWidth = (durationMin * 5).coerceIn(160L, 600L).toInt().dp
-                            
-                            var isProgFocused by remember { mutableStateOf(false) }
-                            
-                            Box(
-                                modifier = Modifier
-                                    .width(cardWidth)
-                                    .fillMaxHeight()
-                                    .onFocusChanged { isProgFocused = it.isFocused }
-                                    .clickable { onSelectProgramDetail(program, channel) }
-                                    .background(
-                                        color = if (isProgFocused) MaterialTheme.colorScheme.primary
-                                                else MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
-                                    .border(
-                                        width = if (isProgFocused) 2.dp else 0.dp,
-                                        color = if (isProgFocused) MaterialTheme.colorScheme.secondary else Color.Transparent,
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
-                                    .padding(10.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        text = program.title,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isProgFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = formatTimeRange(program.start, program.stop),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (isProgFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.secondary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
+                    val bringIntoViewSpec = remember(userHorizontalScrolling) {
+                        createBringIntoViewSpec(userHorizontalScrolling)
+                    }
+                    CompositionLocalProvider(LocalBringIntoViewSpec provides bringIntoViewSpec) {
+                        LazyRow(
+                            state = rowState,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                            horizontalArrangement = Arrangement.spacedBy(0.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            items(rowItems) { item ->
+                                when (item) {
+                                    is TvTimelineItem.Gap -> {
+                                        Spacer(modifier = Modifier.width((item.durationMin * MINUTES_TO_DP).toInt().dp))
+                                    }
+                                    is TvTimelineItem.ProgramCard -> {
+                                        val program = item.program
+                                        val cardWidth = (item.durationMin * MINUTES_TO_DP).toInt().dp
+                                        
+                                        var isProgFocused by remember { mutableStateOf(false) }
+                                        
+                                        // During vertical nav, only show highlight on the card at referenceTime
+                                        val showFocusHighlight = isProgFocused && (
+                                            userHorizontalScrolling ||
+                                            (program.start <= referenceTime && program.stop > referenceTime)
+                                        )
+                                        
+                                        // When this card gains focus during vertical nav, check if it's the right one
+                                        LaunchedEffect(isProgFocused) {
+                                            if (isProgFocused && !userHorizontalScrolling) {
+                                                val isCorrectCard = program.start <= referenceTime && program.stop > referenceTime
+                                                if (!isCorrectCard) {
+                                                    val correctCard = rowItems.filterIsInstance<TvTimelineItem.ProgramCard>()
+                                                        .find { it.program.start <= referenceTime && it.program.stop > referenceTime }
+                                                    correctCard?.focusRequester?.requestFocus()
+                                                }
+                                            }
+                                        }
+                                        
+                                        Box(
+                                            modifier = Modifier
+                                                .focusRequester(item.focusRequester)
+                                                .width(cardWidth)
+                                                .fillMaxHeight()
+                                                .padding(end = 8.dp)
+                                                .onFocusChanged { 
+                                                    isProgFocused = it.isFocused 
+                                                    if (it.isFocused) {
+                                                        focusedChannelUrl = channel.url
+                                                    }
+                                                }
+                                                .clickable { onSelectProgramDetail(program, channel) }
+                                                .background(
+                                                    color = if (showFocusHighlight) MaterialTheme.colorScheme.primary
+                                                            else MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                )
+                                                .border(
+                                                    width = if (showFocusHighlight) 2.dp else 0.dp,
+                                                    color = if (showFocusHighlight) MaterialTheme.colorScheme.secondary else Color.Transparent,
+                                                    shape = RoundedCornerShape(8.dp)
+                                                )
+                                                .padding(10.dp)
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.fillMaxSize(),
+                                                verticalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = program.title,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (showFocusHighlight) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = formatTimeRange(program.start, program.stop),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = if (showFocusHighlight) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.secondary,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2993,4 +3135,74 @@ fun StatsRow(label: String, value: String) {
     }
 }
 
+sealed class TvTimelineItem {
+    data class Gap(val durationMin: Long) : TvTimelineItem()
+    data class ProgramCard(
+        val program: ProgramEntity,
+        val durationMin: Long,
+        val focusRequester: FocusRequester = FocusRequester()
+    ) : TvTimelineItem()
+}
 
+private const val MINUTES_TO_DP = 5
+
+private fun getAbsoluteScrollOffsetPx(
+    rowItems: List<TvTimelineItem>,
+    firstVisibleItemIndex: Int,
+    firstVisibleItemScrollOffset: Int,
+    density: Float
+): Int {
+    var accumulatedPx = 0
+    for (i in 0 until firstVisibleItemIndex) {
+        if (i >= rowItems.size) break
+        val item = rowItems[i]
+        val durationMin = when (item) {
+            is TvTimelineItem.Gap -> item.durationMin
+            is TvTimelineItem.ProgramCard -> item.durationMin
+        }
+        val widthDp = durationMin * MINUTES_TO_DP
+        val widthPx = (widthDp * density).toInt()
+        accumulatedPx += widthPx
+    }
+    return accumulatedPx + firstVisibleItemScrollOffset
+}
+
+private fun getLazyListScrollStateForOffset(
+    rowItems: List<TvTimelineItem>,
+    globalScrollOffsetPx: Int,
+    density: Float
+): Pair<Int, Int> {
+    if (rowItems.isEmpty()) return Pair(0, 0)
+    var accumulatedPx = 0
+    rowItems.forEachIndexed { index, item ->
+        val durationMin = when (item) {
+            is TvTimelineItem.Gap -> item.durationMin
+            is TvTimelineItem.ProgramCard -> item.durationMin
+        }
+        val widthDp = durationMin * MINUTES_TO_DP
+        val widthPx = (widthDp * density).toInt()
+        
+        if (accumulatedPx + widthPx > globalScrollOffsetPx) {
+            val offsetPx = globalScrollOffsetPx - accumulatedPx
+            return Pair(index, offsetPx)
+        }
+        accumulatedPx += widthPx
+    }
+    return Pair(rowItems.lastIndex, 0)
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+private fun createBringIntoViewSpec(userHorizontalScrolling: Boolean) = object : BringIntoViewSpec {
+    override fun calculateScrollDistance(
+        offset: Float,
+        size: Float,
+        containerSize: Float
+    ): Float {
+        if (userHorizontalScrolling) {
+            val itemCenter = offset + size / 2f
+            val containerCenter = containerSize / 2f
+            return itemCenter - containerCenter
+        }
+        return 0f
+    }
+}
