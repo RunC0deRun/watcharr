@@ -2,6 +2,7 @@ package io.github.runc0derun.watcharr.shared.mvi
 
 import io.github.runc0derun.watcharr.shared.data.db.ChannelEntity
 import io.github.runc0derun.watcharr.shared.data.db.ProgramEntity
+import io.github.runc0derun.watcharr.shared.data.dvr.DvrRecording
 
 sealed interface PlaybackState {
     data object Idle : PlaybackState
@@ -14,6 +15,10 @@ sealed interface PlaybackIntent {
     data class LoadPlaylist(val m3uUrl: String) : PlaybackIntent
     data class SelectChannel(val channel: ChannelEntity) : PlaybackIntent
     data object TogglePlay : PlaybackIntent
+    data object FetchRecordings : PlaybackIntent
+    data class ScheduleRecording(val program: ProgramEntity, val channel: ChannelEntity? = null) : PlaybackIntent
+    data class CancelRecording(val recordingId: String) : PlaybackIntent
+    data class PlayRecording(val recording: DvrRecording) : PlaybackIntent
 }
 
 sealed interface PlaybackSideEffect {
@@ -35,10 +40,16 @@ data class IptvUiState(
     val isOnboardingCompleted: Boolean = false,
     val useDispatcharr: Boolean = false,
     val dispatcharrUrl: String = "",
+    val dispatcharrUsername: String = "",
+    val dispatcharrPassword: String = "",
     val setupQrUrl: String = "",
     val setupStatus: String = "",
     val isInitialized: Boolean = false,
     val isTailnetEnabled: Boolean = false,
     val tailscaleAuthKey: String = "",
-    val tsnetStatus: String = ""
+    val tsnetStatus: String = "",
+    val recordings: List<DvrRecording> = emptyList(),
+    val isDvrLoading: Boolean = false,
+    val scheduledProgramKeys: Set<String> = emptySet()
 )
+

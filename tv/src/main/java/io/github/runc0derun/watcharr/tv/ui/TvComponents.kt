@@ -58,6 +58,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
+import io.github.runc0derun.watcharr.shared.data.dvr.DvrRecording
+import io.github.runc0derun.watcharr.shared.playback.BaseIptvViewModel
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -788,12 +790,16 @@ fun TailscaleStatusIndicator(status: String, modifier: Modifier = Modifier) {
 fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
     var manualMode by remember { mutableStateOf<String?>(null) }
     var dispatcharrUrlInput by remember { mutableStateOf("") }
+    var dispatcharrUsernameInput by remember { mutableStateOf(uiState.dispatcharrUsername) }
+    var dispatcharrPasswordInput by remember { mutableStateOf(uiState.dispatcharrPassword) }
     var playlistUrlInput by remember { mutableStateOf("") }
     var epgUrlInput by remember { mutableStateOf("") }
     var tailscaleAuthKeyInput by remember(uiState.tailscaleAuthKey) { mutableStateOf(uiState.tailscaleAuthKey) }
 
     val defaultFocusRequester = remember { FocusRequester() }
     val dispatcharrFocusRequester = remember { FocusRequester() }
+    val dispatcharrUserFocusRequester = remember { FocusRequester() }
+    val dispatcharrPassFocusRequester = remember { FocusRequester() }
     val customFocusRequester = remember { FocusRequester() }
     val connectButtonFocusRequester = remember { FocusRequester() }
     val saveButtonFocusRequester = remember { FocusRequester() }
@@ -924,6 +930,57 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                             .fillMaxWidth()
                             .focusRequester(dispatcharrFocusRequester)
                             .focusProperties {
+                                down = dispatcharrUserFocusRequester
+                            },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = {
+                            dispatcharrUserFocusRequester.requestFocus()
+                        }),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = dispatcharrUsernameInput,
+                        onValueChange = { dispatcharrUsernameInput = it },
+                        label = { Text("Username (Optional)") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(dispatcharrUserFocusRequester)
+                            .focusProperties {
+                                down = dispatcharrPassFocusRequester
+                            },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = {
+                            dispatcharrPassFocusRequester.requestFocus()
+                        }),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = dispatcharrPasswordInput,
+                        onValueChange = { dispatcharrPasswordInput = it },
+                        label = { Text("Password (Optional)") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(dispatcharrPassFocusRequester)
+                            .focusProperties {
                                 down = tailnetToggleFocusRequester
                             },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -1021,7 +1078,7 @@ fun TvOnboardingScreen(uiState: IptvUiState, viewModel: TvViewModel) {
                                 if (dispatcharrUrlInput.isNotEmpty()) {
                                     val m3u = "$dispatcharrUrlInput/output/m3u"
                                     val epg = "$dispatcharrUrlInput/output/epg"
-                                    viewModel.saveConfigAndCompleteOnboarding(m3u, epg, dispatcharrUrlInput, true)
+                                    viewModel.saveConfigAndCompleteOnboarding(m3u, epg, dispatcharrUrlInput, true, dispatcharrUsernameInput, dispatcharrPasswordInput)
                                 }
                             },
                             modifier = Modifier
@@ -1243,7 +1300,7 @@ fun QrCodeImage(content: String, modifier: Modifier = Modifier) {
 }
 
 enum class TvTab {
-    CHANNELS, EPG, SETTINGS
+    CHANNELS, EPG, RECORDINGS, SETTINGS
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -1318,6 +1375,11 @@ fun TvTopBar(
                 label = "TV Guide",
                 isSelected = selectedTab == TvTab.EPG,
                 onClick = { onTabSelected(TvTab.EPG) }
+            )
+            TvTopBarItem(
+                label = "Recordings",
+                isSelected = selectedTab == TvTab.RECORDINGS,
+                onClick = { onTabSelected(TvTab.RECORDINGS) }
             )
             TvTopBarItem(
                 label = "Setup",
@@ -2245,6 +2307,8 @@ fun TvSettingsPanel(
 ) {
     var isDispatcharrMode by remember { mutableStateOf(uiState.useDispatcharr) }
     var dispatcharrInput by remember { mutableStateOf(uiState.dispatcharrUrl) }
+    var dispatcharrUsernameInput by remember { mutableStateOf(uiState.dispatcharrUsername) }
+    var dispatcharrPasswordInput by remember { mutableStateOf(uiState.dispatcharrPassword) }
     var m3uInput by remember { mutableStateOf(uiState.playlistUrlInput) }
     var epgInput by remember { mutableStateOf(uiState.epgUrlInput) }
 
@@ -2328,6 +2392,33 @@ fun TvSettingsPanel(
                             unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
+                    OutlinedTextField(
+                        value = dispatcharrUsernameInput,
+                        onValueChange = { dispatcharrUsernameInput = it },
+                        label = { Text("Username (Optional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                    OutlinedTextField(
+                        value = dispatcharrPasswordInput,
+                        onValueChange = { dispatcharrPasswordInput = it },
+                        label = { Text("Password (Optional)") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
                 } else {
                     OutlinedTextField(
                         value = m3uInput,
@@ -2365,7 +2456,7 @@ fun TvSettingsPanel(
                             if (dispatcharrInput.isNotEmpty()) {
                                 val m3u = "$dispatcharrInput/output/m3u"
                                 val epg = "$dispatcharrInput/output/epg"
-                                viewModel.saveConfigAndCompleteOnboarding(m3u, epg, dispatcharrInput, true)
+                                viewModel.saveConfigAndCompleteOnboarding(m3u, epg, dispatcharrInput, true, dispatcharrUsernameInput, dispatcharrPasswordInput)
                             }
                         } else {
                             if (m3uInput.isNotEmpty()) {
@@ -2435,6 +2526,10 @@ fun TvSettingsPanel(
 fun TvProgramDetailScreen(
     program: ProgramEntity,
     channel: ChannelEntity?,
+    uiState: IptvUiState? = null,
+    onScheduleRecording: ((ProgramEntity, ChannelEntity?) -> Unit)? = null,
+    onCancelRecording: ((String) -> Unit)? = null,
+    onPlayRecording: ((DvrRecording) -> Unit)? = null,
     onDismiss: () -> Unit,
     onPlayChannel: ((ChannelEntity) -> Unit)? = null
 ) {
@@ -2501,6 +2596,93 @@ fun TvProgramDetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (uiState?.useDispatcharr == true) {
+                    val progTitle = program.title.trim().lowercase()
+                    val chName = channel?.name?.trim()?.lowercase()
+                    val chId = program.channelId.trim()
+                    val chTvgId = channel?.tvgId?.trim()?.lowercase()
+
+                    val existingRec = uiState.recordings.firstOrNull { rec ->
+                        val recTitle = rec.programTitle.trim().lowercase()
+                        val titleMatch = recTitle == progTitle || recTitle.contains(progTitle) || progTitle.contains(recTitle)
+                        val recCh = rec.channelId?.trim()?.lowercase()
+                        val recChName = rec.channelName.trim().lowercase()
+                        val chMatch = (recCh != null && (recCh == chId || (chTvgId != null && recCh == chTvgId))) ||
+                                (chName != null && (recChName == chName || recChName.contains(chName) || chName.contains(recChName)))
+                        val timeMatch = if (rec.startEpochMs > 0 && program.start > 0) {
+                            Math.abs(rec.startEpochMs - program.start) < 600_000
+                        } else true
+                        titleMatch && (chMatch || timeMatch)
+                    } ?: uiState.recordings.firstOrNull { rec ->
+                        rec.programTitle.trim().equals(program.title.trim(), ignoreCase = true)
+                    }
+
+                    val isScheduled = existingRec?.status == io.github.runc0derun.watcharr.shared.data.dvr.DvrStatus.SCHEDULED ||
+                            existingRec?.status == io.github.runc0derun.watcharr.shared.data.dvr.DvrStatus.RECORDING ||
+                            uiState.scheduledProgramKeys.contains(program.title.lowercase())
+                    val isCompleted = existingRec?.status == io.github.runc0derun.watcharr.shared.data.dvr.DvrStatus.COMPLETED
+
+                    val recButtonText = when {
+                        isCompleted -> "▶ Recorded"
+                        isScheduled -> "Recording Scheduled"
+                        else -> "● Record"
+                    }
+
+                    var isRecFocused by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .onFocusChanged { isRecFocused = it.isFocused }
+                            .focusable()
+                            .onKeyEvent { keyEvent ->
+                                if (keyEvent.type == KeyEventType.KeyUp &&
+                                    (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                                ) {
+                                    when {
+                                        isCompleted && existingRec != null -> onPlayRecording?.invoke(existingRec)
+                                        isScheduled -> {
+                                            val recId = existingRec?.id ?: ""
+                                            if (recId.isNotEmpty()) onCancelRecording?.invoke(recId)
+                                        }
+                                        else -> onScheduleRecording?.invoke(program, channel)
+                                    }
+                                    onDismiss()
+                                    true
+                                } else false
+                            }
+                            .clickable {
+                                when {
+                                    isCompleted && existingRec != null -> onPlayRecording?.invoke(existingRec)
+                                    isScheduled -> {
+                                        val recId = existingRec?.id ?: ""
+                                        if (recId.isNotEmpty()) onCancelRecording?.invoke(recId)
+                                    }
+                                    else -> onScheduleRecording?.invoke(program, channel)
+                                }
+                                onDismiss()
+                            }
+                            .background(
+                                color = if (isRecFocused) {
+                                    if (isCompleted) MaterialTheme.colorScheme.primary else Color.Red
+                                } else MaterialTheme.colorScheme.surface,
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (isRecFocused) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = recButtonText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isRecFocused) Color.White else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
                 if (isLive && channel != null) {
                     var isPlayFocused by remember { mutableStateOf(false) }
                     Box(
@@ -3263,3 +3445,360 @@ private fun createBringIntoViewSpec(userHorizontalScrolling: Boolean) = object :
         return 0f
     }
 }
+
+@Composable
+fun TvRecordingsScreen(
+    uiState: IptvUiState,
+    viewModel: BaseIptvViewModel,
+    onNavigateToSetup: () -> Unit
+) {
+    if (!uiState.useDispatcharr || uiState.dispatcharrUrl.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(48.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(480.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(16.dp))
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "DVR",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Dispatcharr DVR Required",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Text(
+                    text = "Recordings are only available when integrated with Dispatcharr and not with any other M3U provider.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                
+                var isFocused by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .onFocusChanged { isFocused = it.isFocused }
+                        .focusable()
+                        .onKeyEvent { keyEvent ->
+                            if (keyEvent.type == KeyEventType.KeyUp &&
+                                (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                            ) {
+                                onNavigateToSetup()
+                                true
+                            } else false
+                        }
+                        .clickable { onNavigateToSetup() }
+                        .background(
+                            color = if (isFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Configure Dispatcharr in Setup",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+        return
+    }
+
+    var selectedFilter by remember { mutableIntStateOf(0) }
+    val filterLabels = listOf("Completed", "Scheduled", "Active")
+
+    val filteredRecordings = remember(uiState.recordings, selectedFilter) {
+        when (selectedFilter) {
+            0 -> uiState.recordings.filter { it.isCompleted() }
+            1 -> uiState.recordings.filter { it.isScheduled() }
+            2 -> uiState.recordings.filter { it.isLiveRecording() }
+            else -> uiState.recordings
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "DVR Recordings",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Manage and play recorded programs from Dispatcharr",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            var isRefreshFocused by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier
+                    .onFocusChanged { isRefreshFocused = it.isFocused }
+                    .focusable()
+                    .onKeyEvent { keyEvent ->
+                        if (keyEvent.type == KeyEventType.KeyUp &&
+                            (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                        ) {
+                            viewModel.handleIntent(PlaybackIntent.FetchRecordings)
+                            true
+                        } else false
+                    }
+                    .clickable { viewModel.handleIntent(PlaybackIntent.FetchRecordings) }
+                    .background(
+                        color = if (isRefreshFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "↻ Refresh",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isRefreshFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            filterLabels.forEachIndexed { index, label ->
+                val selected = selectedFilter == index
+                var isFocused by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .onFocusChanged { isFocused = it.isFocused }
+                        .focusable()
+                        .onKeyEvent { keyEvent ->
+                            if (keyEvent.type == KeyEventType.KeyUp &&
+                                (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                            ) {
+                                selectedFilter = index
+                                true
+                            } else false
+                        }
+                        .clickable { selectedFilter = index }
+                        .background(
+                            color = if (selected) MaterialTheme.colorScheme.primary
+                                    else if (isFocused) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
+                                    else MaterialTheme.colorScheme.surface,
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (selected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
+        if (uiState.isDvrLoading && uiState.recordings.isEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (filteredRecordings.isEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "No ${filterLabels[selectedFilter].lowercase()} recordings found.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(3),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            ) {
+                items(filteredRecordings.size, key = { filteredRecordings[it].id }) { idx ->
+                    val rec = filteredRecordings[idx]
+                    TvRecordingCardItem(
+                        recording = rec,
+                        onPlay = { viewModel.handleIntent(PlaybackIntent.PlayRecording(rec)) },
+                        onDelete = { viewModel.handleIntent(PlaybackIntent.CancelRecording(rec.id)) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TvRecordingCardItem(
+    recording: DvrRecording,
+    onPlay: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onFocusChanged { isFocused = it.isFocused }
+            .focusable()
+            .onKeyEvent { keyEvent ->
+                if (keyEvent.type == KeyEventType.KeyUp &&
+                    (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                ) {
+                    if (recording.isCompleted()) onPlay() else onDelete()
+                    true
+                } else false
+            }
+            .clickable {
+                if (recording.isCompleted()) onPlay() else onDelete()
+            }
+            .background(
+                color = if (isFocused) MaterialTheme.colorScheme.surfaceVariant
+                        else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .border(
+                width = if (isFocused) 2.dp else 0.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+                    .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!recording.posterUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = recording.posterUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text("DVR", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+
+            Text(
+                text = recording.programTitle,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = recording.channelName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.secondary
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = formatTimeRange(recording.startEpochMs, recording.stopEpochMs),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (recording.isCompleted()) {
+                        var isPlayFocused by remember { mutableStateOf(false) }
+                        Box(
+                            modifier = Modifier
+                                .onFocusChanged { isPlayFocused = it.isFocused }
+                                .focusable()
+                                .onKeyEvent { keyEvent ->
+                                    if (keyEvent.type == KeyEventType.KeyUp &&
+                                        (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                                    ) {
+                                        onPlay()
+                                        true
+                                    } else false
+                                }
+                                .clickable { onPlay() }
+                                .background(
+                                    color = if (isPlayFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "▶ Play",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isPlayFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    var isDeleteFocused by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .onFocusChanged { isDeleteFocused = it.isFocused }
+                            .focusable()
+                            .onKeyEvent { keyEvent ->
+                                if (keyEvent.type == KeyEventType.KeyUp &&
+                                    (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                                ) {
+                                    onDelete()
+                                    true
+                                } else false
+                            }
+                            .clickable { onDelete() }
+                            .background(
+                                color = if (isDeleteFocused) Color.Red else Color.Transparent,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Delete",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDeleteFocused) Color.White else Color.Red
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+

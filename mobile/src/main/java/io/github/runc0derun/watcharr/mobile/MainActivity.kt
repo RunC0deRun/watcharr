@@ -261,7 +261,7 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                val tabs = listOf("Start", "TV Guide", "Setup")
+                                val tabs = listOf("Start", "TV Guide", "Recordings", "Setup")
                                 tabs.forEachIndexed { index, label ->
                                     val selected = activeTab == index
                                     TextButton(
@@ -334,7 +334,12 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                                     detailedChannel = channel
                                 }
                             )
-                            2 -> MobileSettingsPanel(
+                            2 -> MobileRecordingsScreen(
+                                uiState = uiState,
+                                viewModel = viewModel,
+                                onNavigateToSetup = { activeTab = 3 }
+                            )
+                            3 -> MobileSettingsPanel(
                                 uiState = uiState,
                                 viewModel = viewModel
                             )
@@ -521,24 +526,97 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                 }
             },
             confirmButton = {
-                if (isLive && channel != null) {
-                    Button(
-                        onClick = {
-                            detailedProgram = null
-                            detailedChannel = null
-                            viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (uiState.useDispatcharr) {
+                        val progTitle = program.title.trim().lowercase()
+                        val chName = channel?.name?.trim()?.lowercase()
+                        val chId = program.channelId.trim()
+                        val chTvgId = channel?.tvgId?.trim()?.lowercase()
+
+                        val existingRec = uiState.recordings.firstOrNull { rec ->
+                            val recTitle = rec.programTitle.trim().lowercase()
+                            val titleMatch = recTitle == progTitle || recTitle.contains(progTitle) || progTitle.contains(recTitle)
+                            val recCh = rec.channelId?.trim()?.lowercase()
+                            val recChName = rec.channelName.trim().lowercase()
+                            val chMatch = (recCh != null && (recCh == chId || (chTvgId != null && recCh == chTvgId))) ||
+                                    (chName != null && (recChName == chName || recChName.contains(chName) || chName.contains(recChName)))
+                            val timeMatch = if (rec.startEpochMs > 0 && program.start > 0) {
+                                Math.abs(rec.startEpochMs - program.start) < 600_000
+                            } else true
+                            titleMatch && (chMatch || timeMatch)
+                        } ?: uiState.recordings.firstOrNull { rec ->
+                            rec.programTitle.trim().equals(program.title.trim(), ignoreCase = true)
                         }
-                    ) {
-                        Text("▶ Start Playing")
+
+                        val isScheduled = existingRec?.status == io.github.runc0derun.watcharr.shared.data.dvr.DvrStatus.SCHEDULED ||
+                                existingRec?.status == io.github.runc0derun.watcharr.shared.data.dvr.DvrStatus.RECORDING ||
+                                uiState.scheduledProgramKeys.contains(program.title.lowercase())
+                        val isCompleted = existingRec?.status == io.github.runc0derun.watcharr.shared.data.dvr.DvrStatus.COMPLETED
+
+                        when {
+                            isCompleted -> {
+                                Button(
+                                    onClick = {
+                                        detailedProgram = null
+                                        detailedChannel = null
+                                        if (existingRec != null) {
+                                            viewModel.handleIntent(PlaybackIntent.PlayRecording(existingRec))
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                ) {
+                                    Text("▶ Recorded")
+                                }
+                            }
+                            isScheduled -> {
+                                OutlinedButton(
+                                    onClick = {
+                                        val recId = existingRec?.id ?: ""
+                                        if (recId.isNotEmpty()) {
+                                            viewModel.handleIntent(PlaybackIntent.CancelRecording(recId))
+                                        }
+                                        detailedProgram = null
+                                        detailedChannel = null
+                                    },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text("Recording Scheduled")
+                                }
+                            }
+                            else -> {
+                                Button(
+                                    onClick = {
+                                        viewModel.handleIntent(PlaybackIntent.ScheduleRecording(program, channel))
+                                        detailedProgram = null
+                                        detailedChannel = null
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Text("● Record")
+                                }
+                            }
+                        }
                     }
-                } else {
-                    Button(
-                        onClick = {
-                            detailedProgram = null
-                            detailedChannel = null
+
+                    if (isLive && channel != null) {
+                        Button(
+                            onClick = {
+                                detailedProgram = null
+                                detailedChannel = null
+                                viewModel.handleIntent(PlaybackIntent.SelectChannel(channel))
+                            }
+                        ) {
+                            Text("▶ Start Playing")
                         }
-                    ) {
-                        Text("Close")
+                    } else {
+                        Button(
+                            onClick = {
+                                detailedProgram = null
+                                detailedChannel = null
+                            }
+                        ) {
+                            Text("Close")
+                        }
                     }
                 }
             },

@@ -35,6 +35,8 @@ import androidx.media3.ui.PlayerView
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import io.github.runc0derun.watcharr.shared.data.db.ChannelEntity
 import io.github.runc0derun.watcharr.shared.data.db.ProgramEntity
+import io.github.runc0derun.watcharr.shared.data.dvr.DvrRecording
+import io.github.runc0derun.watcharr.shared.playback.BaseIptvViewModel
 import io.github.runc0derun.watcharr.shared.mvi.*
 import androidx.compose.animation.Crossfade
 import androidx.compose.ui.layout.ContentScale
@@ -862,6 +864,8 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
     var currentStep by remember { mutableIntStateOf(0) }
     var isDispatcharrMode by remember { mutableStateOf(true) }
     var dispatcharrInput by remember { mutableStateOf("") }
+    var dispatcharrUsernameInput by remember { mutableStateOf(uiState.dispatcharrUsername) }
+    var dispatcharrPasswordInput by remember { mutableStateOf(uiState.dispatcharrPassword) }
     var m3uInput by remember { mutableStateOf("") }
     var epgInput by remember { mutableStateOf("") }
 
@@ -1136,6 +1140,23 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = dispatcharrUsernameInput,
+                        onValueChange = { dispatcharrUsernameInput = it },
+                        label = { Text("Username (Optional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = dispatcharrPasswordInput,
+                        onValueChange = { dispatcharrPasswordInput = it },
+                        label = { Text("Password (Optional)") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 } else {
                     OutlinedTextField(
                         value = m3uInput,
@@ -1167,7 +1188,7 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                                 if (dispatcharrInput.isNotEmpty()) {
                                     val m3u = "$dispatcharrInput/output/m3u"
                                     val epg = "$dispatcharrInput/output/epg"
-                                    viewModel.completeOnboarding(m3u, epg, dispatcharrInput, true)
+                                    viewModel.completeOnboarding(m3u, epg, dispatcharrInput, true, dispatcharrUsernameInput, dispatcharrPasswordInput)
                                 }
                             } else {
                                 if (m3uInput.isNotEmpty()) {
@@ -1819,6 +1840,9 @@ fun MobileFullEpgGuide(
                                 is TvTimelineItem.ProgramCard -> {
                                     val program = item.program
                                     val cardWidth = (item.durationMin * MINUTES_TO_DP).toInt().dp
+                                    val progKey = "${program.channelId}_${program.start}"
+                                    val isScheduled = uiState.scheduledProgramKeys.contains(progKey) ||
+                                            uiState.scheduledProgramKeys.contains(program.title.lowercase())
 
                                     Card(
                                         modifier = Modifier
@@ -1828,21 +1852,43 @@ fun MobileFullEpgGuide(
                                             .clickable { onSelectProgramDetail(program, channel) },
                                         shape = RoundedCornerShape(8.dp),
                                         colors = CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
+                                            containerColor = if (isScheduled) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                                                             else MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
                                         )
                                     ) {
                                         Column(
                                             modifier = Modifier.fillMaxSize().padding(10.dp),
                                             verticalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Text(
-                                                text = program.title,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = program.title,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.weight(1f, fill = false)
+                                                )
+                                                if (isScheduled) {
+                                                    Surface(
+                                                        color = Color.Red,
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "● REC",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = Color.White,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
                                             Text(
                                                 text = formatTimeRange(program.start, program.stop),
                                                 style = MaterialTheme.typography.bodySmall,
@@ -1870,6 +1916,8 @@ fun MobileSettingsPanel(
     val isAutomotive = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_AUTOMOTIVE)
     var isDispatcharrMode by remember { mutableStateOf(uiState.useDispatcharr) }
     var dispatcharrInput by remember { mutableStateOf(uiState.dispatcharrUrl) }
+    var dispatcharrUsernameInput by remember { mutableStateOf(uiState.dispatcharrUsername) }
+    var dispatcharrPasswordInput by remember { mutableStateOf(uiState.dispatcharrPassword) }
     var m3uInput by remember { mutableStateOf(uiState.playlistUrlInput) }
     var epgInput by remember { mutableStateOf(uiState.epgUrlInput) }
 
@@ -1943,6 +1991,21 @@ fun MobileSettingsPanel(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    OutlinedTextField(
+                        value = dispatcharrUsernameInput,
+                        onValueChange = { dispatcharrUsernameInput = it },
+                        label = { Text("Username (Optional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = dispatcharrPasswordInput,
+                        onValueChange = { dispatcharrPasswordInput = it },
+                        label = { Text("Password (Optional)") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 } else {
                     OutlinedTextField(
                         value = m3uInput,
@@ -1968,7 +2031,7 @@ fun MobileSettingsPanel(
                             if (dispatcharrInput.isNotEmpty()) {
                                 val m3u = "$dispatcharrInput/output/m3u"
                                 val epg = "$dispatcharrInput/output/epg"
-                                viewModel.completeOnboarding(m3u, epg, dispatcharrInput, true)
+                                viewModel.completeOnboarding(m3u, epg, dispatcharrInput, true, dispatcharrUsernameInput, dispatcharrPasswordInput)
                             }
                         } else {
                             if (m3uInput.isNotEmpty()) {
@@ -2189,3 +2252,230 @@ private fun getLazyListScrollStateForOffset(
     }
     return Pair(rowItems.lastIndex, 0)
 }
+
+@Composable
+fun MobileRecordingsScreen(
+    uiState: IptvUiState,
+    viewModel: BaseIptvViewModel,
+    onNavigateToSetup: () -> Unit
+) {
+    if (!uiState.useDispatcharr || uiState.dispatcharrUrl.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "DVR",
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Dispatcharr DVR Required",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Text(
+                        text = "Recordings are only available when integrated with Dispatcharr and not with any other M3U provider.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Button(
+                        onClick = onNavigateToSetup,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("Configure Dispatcharr in Setup")
+                    }
+                }
+            }
+        }
+        return
+    }
+
+    var selectedFilter by remember { mutableIntStateOf(0) }
+    val filterLabels = listOf("Completed", "Scheduled", "Active")
+
+    val filteredRecordings = remember(uiState.recordings, selectedFilter) {
+        when (selectedFilter) {
+            0 -> uiState.recordings.filter { it.isCompleted() }
+            1 -> uiState.recordings.filter { it.isScheduled() }
+            2 -> uiState.recordings.filter { it.isLiveRecording() }
+            else -> uiState.recordings
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "DVR Recordings",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Manage and play programs recorded via Dispatcharr DVR",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+            TextButton(onClick = { viewModel.handleIntent(PlaybackIntent.FetchRecordings) }) {
+                Text("↻ Refresh")
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            filterLabels.forEachIndexed { index, label ->
+                val selected = selectedFilter == index
+                FilterChip(
+                    selected = selected,
+                    onClick = { selectedFilter = index },
+                    label = { Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) }
+                )
+            }
+        }
+
+        if (uiState.isDvrLoading && uiState.recordings.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (filteredRecordings.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No ${filterLabels[selectedFilter].lowercase()} recordings found.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filteredRecordings, key = { it.id }) { recording ->
+                    RecordingCardItem(
+                        recording = recording,
+                        onPlay = { viewModel.handleIntent(PlaybackIntent.PlayRecording(recording)) },
+                        onDelete = { viewModel.handleIntent(PlaybackIntent.CancelRecording(recording.id)) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RecordingCardItem(
+    recording: DvrRecording,
+    onPlay: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(80.dp, 60.dp)
+                    .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!recording.posterUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = recording.posterUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text("DVR", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = recording.programTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = recording.channelName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+                Text(
+                    text = formatTimeRange(recording.startEpochMs, recording.stopEpochMs),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (recording.isCompleted()) {
+                    Button(
+                        onClick = onPlay,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("▶ Play")
+                    }
+                }
+                OutlinedButton(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            }
+        }
+    }
+}
+

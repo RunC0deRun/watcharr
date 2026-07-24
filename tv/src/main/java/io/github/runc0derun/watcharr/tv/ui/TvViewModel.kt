@@ -47,25 +47,36 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
                 _isOnboardingCompleted,
                 _useDispatcharr,
                 _dispatcharrUrl,
+                _dispatcharrUsername,
+                _dispatcharrPassword,
                 setupFlow,
-                tailnetFlow
+                tailnetFlow,
+                dvrInfoFlow
             ) { args ->
                 val selectedGroup = args[0] as String?
                 val completed = args[1] as Boolean
                 val useDispatcharr = args[2] as Boolean
                 val dispatcharrUrl = args[3] as String
-                val setupInfo = args[4] as SetupInfo
-                val tailnet = args[5] as TailnetInfo
+                val dispatcharrUsername = args[4] as String
+                val dispatcharrPassword = args[5] as String
+                val setupInfo = args[6] as SetupInfo
+                val tailnet = args[7] as TailnetInfo
+                val dvr = args[8] as DvrInfo
                 SettingsInfo(
                     selectedGroup = selectedGroup,
                     isOnboardingCompleted = completed,
                     useDispatcharr = useDispatcharr,
                     dispatcharrUrl = dispatcharrUrl,
+                    dispatcharrUsername = dispatcharrUsername,
+                    dispatcharrPassword = dispatcharrPassword,
                     setupQrUrl = setupInfo.setupQrUrl,
                     setupStatus = setupInfo.setupStatus,
                     isTailnetEnabled = tailnet.enabled,
                     tailscaleAuthKey = tailnet.key,
-                    tsnetStatus = tailnet.status
+                    tsnetStatus = tailnet.status,
+                    recordings = dvr.recordings,
+                    isDvrLoading = dvr.isDvrLoading,
+                    scheduledProgramKeys = dvr.scheduledProgramKeys
                 )
             }
 
@@ -121,9 +132,14 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
                     setupStatus = setupStatus,
                     useDispatcharr = useDispatcharr,
                     dispatcharrUrl = dispatcharrUrl,
+                    dispatcharrUsername = settingsInfo.dispatcharrUsername,
+                    dispatcharrPassword = settingsInfo.dispatcharrPassword,
                     isTailnetEnabled = settingsInfo.isTailnetEnabled,
                     tailscaleAuthKey = settingsInfo.tailscaleAuthKey,
-                    tsnetStatus = settingsInfo.tsnetStatus
+                    tsnetStatus = settingsInfo.tsnetStatus,
+                    recordings = settingsInfo.recordings,
+                    isDvrLoading = settingsInfo.isDvrLoading,
+                    scheduledProgramKeys = settingsInfo.scheduledProgramKeys
                 )
             }.collect { state ->
                 _uiState.value = state.copy(isInitialized = true)
@@ -168,8 +184,15 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
         setupServer = null
     }
 
-    fun saveConfigAndCompleteOnboarding(playlistUrl: String, epgUrl: String, dispatcharrUrl: String?, useDispatcharr: Boolean) {
-        completeOnboarding(playlistUrl, epgUrl, dispatcharrUrl, useDispatcharr)
+    fun saveConfigAndCompleteOnboarding(
+        playlistUrl: String,
+        epgUrl: String,
+        dispatcharrUrl: String?,
+        useDispatcharr: Boolean,
+        dispatcharrUsername: String = "",
+        dispatcharrPassword: String = ""
+    ) {
+        completeOnboarding(playlistUrl, epgUrl, dispatcharrUrl, useDispatcharr, dispatcharrUsername, dispatcharrPassword)
         stopSetupServer()
     }
 
@@ -216,10 +239,15 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
         val isOnboardingCompleted: Boolean,
         val useDispatcharr: Boolean,
         val dispatcharrUrl: String,
+        val dispatcharrUsername: String,
+        val dispatcharrPassword: String,
         val setupQrUrl: String,
         val setupStatus: String,
         val isTailnetEnabled: Boolean,
         val tailscaleAuthKey: String,
-        val tsnetStatus: String
+        val tsnetStatus: String,
+        val recordings: List<io.github.runc0derun.watcharr.shared.data.dvr.DvrRecording>,
+        val isDvrLoading: Boolean,
+        val scheduledProgramKeys: Set<String>
     )
 }

@@ -50,9 +50,30 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
     protected val _isOnboardingCompleted = MutableStateFlow(false)
     protected val _useDispatcharr = MutableStateFlow(false)
     protected val _dispatcharrUrl = MutableStateFlow("")
+    protected val _dispatcharrUsername = MutableStateFlow("")
+    protected val _dispatcharrPassword = MutableStateFlow("")
     protected val _isTailnetEnabled = MutableStateFlow(false)
     protected val _tailscaleAuthKey = MutableStateFlow("")
     protected val _tsnetStatus = MutableStateFlow("")
+
+    protected val dvrClient = io.github.runc0derun.watcharr.shared.data.dvr.DispatcharrDvrClient()
+    protected val _recordings = MutableStateFlow<List<io.github.runc0derun.watcharr.shared.data.dvr.DvrRecording>>(emptyList())
+    protected val _isDvrLoading = MutableStateFlow(false)
+    protected val _scheduledProgramKeys = MutableStateFlow<Set<String>>(emptySet())
+
+    protected data class DvrInfo(
+        val recordings: List<io.github.runc0derun.watcharr.shared.data.dvr.DvrRecording>,
+        val isDvrLoading: Boolean,
+        val scheduledProgramKeys: Set<String>
+    )
+
+    protected val dvrInfoFlow = combine(
+        _recordings,
+        _isDvrLoading,
+        _scheduledProgramKeys
+    ) { recordings, isLoading, scheduledKeys ->
+        DvrInfo(recordings, isLoading, scheduledKeys)
+    }
 
     protected val prefs: SharedPreferences = application.getSharedPreferences("watcharr_prefs", Context.MODE_PRIVATE)
 
@@ -116,6 +137,8 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
         _epgUrlInput.value = prefs.getString("epg_url", "") ?: ""
         _useDispatcharr.value = prefs.getBoolean("use_dispatcharr", false)
         _dispatcharrUrl.value = prefs.getString("dispatcharr_url", "") ?: ""
+        _dispatcharrUsername.value = prefs.getString("dispatcharr_username", "") ?: ""
+        _dispatcharrPassword.value = prefs.getString("dispatcharr_password", "") ?: ""
 
         val tailnetEnabled = prefs.getBoolean("tailnet_enabled", false)
         val tailscaleAuthKey = prefs.getString("tailscale_auth_key", "") ?: ""
@@ -134,6 +157,9 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
 
         if (onboardingDone) {
             checkAndSyncEpgOnStartup()
+            if (_useDispatcharr.value && _dispatcharrUrl.value.isNotEmpty()) {
+                fetchRecordings()
+            }
         }
     }
 
@@ -190,11 +216,115 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    fun completeOnboarding(playlistUrl: String, epgUrl: String, dispatcharrUrl: String?, useDispatcharr: Boolean) {
+    protected fun getAuthenticatedDispatcharrUrl(): String {
+        val raw = _dispatcharrUrl.value.trim().removeSuffix("/")
+        if (raw.isEmpty()) return ""
+        val user = _dispatcharrUsername.value.trim()
+        val pass = _dispatcharrPassword.value.trim()
+        if (user.isNotEmpty() && !raw.contains("@")) {
+            val scheme = if (raw.startsWith("https://")) "https://" else "http://"
+            val cleanHost = raw.removePrefix("http://").removePrefix("https://")
+            val encodedUser = try { java.net.URLEncoder.encode(user, "UTF-8") } catch (e: Exception) { user }
+            val encodedPass = try { java.net.URLEncoder.encode(pass, "UTF-8") } catch (e: Exception) { pass }
+            return "$scheme$encodedUser:$encodedPass@$cleanHost"
+        }
+        return raw
+    }
+
+    protected fun sanitizeUrl(url: String): String {
+        return url.replace(Regex("https?://[^@]+@"), if (url.startsWith("https://")) "https://" else "http://")
+    }
+
+    fun scheduleRecording(program: ProgramEntity, channel: ChannelEntity? = null) {
+        val dispatcharrUrl = getAuthenticatedDispatcharrUrl()
+        if (!_useDispatcharr.value || dispatcharrUrl.isEmpty()) {
+            viewModelScope.launch {
+                _sideEffects.emit(PlaybackSideEffect.ShowToast("Dispatcharr server is not configured."))
+            }
+            return
+        }
+        viewModelScope.launch {
+            _isDvrLoading.value = true
+            val result = dvrClient.scheduleRecording(dispatcharrUrl, program, channel)
+            _isDvrLoading.value = false
+            result.onSuccess { rec ->
+                _sideEffects.emit(PlaybackSideEffect.ShowToast("Scheduled recording for '${program.title}'"))
+                fetchRecordings()
+            }.onFailure { err ->
+                val safeMsg = sanitizeUrl(err.message ?: "Unknown error")
+                _sideEffects.emit(PlaybackSideEffect.ShowToast("Failed to schedule recording: $safeMsg"))
+            }
+        }
+    }
+
+    fun cancelRecording(recordingId: String) {
+        val dispatcharrUrl = getAuthenticatedDispatcharrUrl()
+        if (!_useDispatcharr.value || dispatcharrUrl.isEmpty()) return
+        viewModelScope.launch {
+            _isDvrLoading.value = true
+            val result = dvrClient.deleteRecording(dispatcharrUrl, recordingId)
+            _isDvrLoading.value = false
+            result.onSuccess {
+                _sideEffects.emit(PlaybackSideEffect.ShowToast("Recording cancelled/deleted."))
+                fetchRecordings()
+            }.onFailure { err ->
+                val safeMsg = sanitizeUrl(err.message ?: "Unknown error")
+                _sideEffects.emit(PlaybackSideEffect.ShowToast("Failed to delete recording: $safeMsg"))
+            }
+        }
+    }
+
+    fun fetchRecordings() {
+        val dispatcharrUrl = getAuthenticatedDispatcharrUrl()
+        if (!_useDispatcharr.value || dispatcharrUrl.isEmpty()) {
+            _recordings.value = emptyList()
+            _scheduledProgramKeys.value = emptySet()
+            return
+        }
+        viewModelScope.launch {
+            _isDvrLoading.value = true
+            val result = dvrClient.fetchRecordings(dispatcharrUrl)
+            _isDvrLoading.value = false
+            result.onSuccess { list ->
+                _recordings.value = list
+                val keys = list.flatMap { rec ->
+                    val set = mutableSetOf<String>()
+                    if (!rec.channelId.isNullOrEmpty()) set.add("${rec.channelId}_${rec.startEpochMs}")
+                    set.add(rec.programTitle.lowercase())
+                    set
+                }.toSet()
+                _scheduledProgramKeys.value = keys
+            }.onFailure {
+                // Silently keep current recordings
+            }
+        }
+    }
+
+    fun completeOnboarding(
+        playlistUrl: String,
+        epgUrl: String,
+        dispatcharrUrl: String?,
+        useDispatcharr: Boolean,
+        dispatcharrUsername: String = "",
+        dispatcharrPassword: String = ""
+    ) {
         viewModelScope.launch {
             val trimmedPlaylist = playlistUrl.trim().removeSuffix("/")
             val trimmedEpg = epgUrl.trim().removeSuffix("/")
-            val trimmedDispatcharr = dispatcharrUrl?.trim()?.removeSuffix("/") ?: ""
+            val rawDispatcharr = dispatcharrUrl?.trim()?.removeSuffix("/") ?: ""
+            val user = dispatcharrUsername.trim()
+            val pass = dispatcharrPassword.trim()
+
+            var finalDispatcharr = rawDispatcharr
+            if (useDispatcharr && user.isNotEmpty() && rawDispatcharr.isNotEmpty()) {
+                val scheme = if (rawDispatcharr.startsWith("https://")) "https://" else "http://"
+                val cleanHost = rawDispatcharr.removePrefix("http://").removePrefix("https://")
+                if (!cleanHost.contains("@")) {
+                    val encodedUser = java.net.URLEncoder.encode(user, "UTF-8")
+                    val encodedPass = java.net.URLEncoder.encode(pass, "UTF-8")
+                    finalDispatcharr = "$scheme$encodedUser:$encodedPass@$cleanHost"
+                }
+            }
 
             if (trimmedPlaylist.isNotEmpty() && !isValidUrl(trimmedPlaylist)) {
                 _sideEffects.emit(PlaybackSideEffect.ShowToast("Invalid Playlist URL format!"))
@@ -204,7 +334,7 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
                 _sideEffects.emit(PlaybackSideEffect.ShowToast("Invalid EPG URL format!"))
                 return@launch
             }
-            if (useDispatcharr && trimmedDispatcharr.isNotEmpty() && !isValidUrl(trimmedDispatcharr)) {
+            if (useDispatcharr && finalDispatcharr.isNotEmpty() && !isValidUrl(finalDispatcharr)) {
                 _sideEffects.emit(PlaybackSideEffect.ShowToast("Invalid Dispatcharr URL format!"))
                 return@launch
             }
@@ -212,7 +342,9 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
             prefs.edit().apply {
                 putString("playlist_url", trimmedPlaylist)
                 putString("epg_url", trimmedEpg)
-                putString("dispatcharr_url", trimmedDispatcharr)
+                putString("dispatcharr_url", finalDispatcharr)
+                putString("dispatcharr_username", user)
+                putString("dispatcharr_password", pass)
                 putBoolean("use_dispatcharr", useDispatcharr)
                 putBoolean("onboarding_completed", true)
                 apply()
@@ -221,7 +353,9 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
             _playlistUrlInput.value = trimmedPlaylist
             _epgUrlInput.value = trimmedEpg
             _useDispatcharr.value = useDispatcharr
-            _dispatcharrUrl.value = trimmedDispatcharr
+            _dispatcharrUrl.value = finalDispatcharr
+            _dispatcharrUsername.value = user
+            _dispatcharrPassword.value = pass
             _isOnboardingCompleted.value = true
 
             if (trimmedPlaylist.isNotEmpty()) {
@@ -229,6 +363,9 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
             }
             if (trimmedEpg.isNotEmpty()) {
                 loadEpg(trimmedEpg)
+            }
+            if (useDispatcharr && finalDispatcharr.isNotEmpty()) {
+                fetchRecordings()
             }
         }
     }
@@ -243,6 +380,28 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
             }
             is PlaybackIntent.TogglePlay -> {
                 playerEngine.togglePlay()
+            }
+            is PlaybackIntent.FetchRecordings -> {
+                fetchRecordings()
+            }
+            is PlaybackIntent.ScheduleRecording -> {
+                scheduleRecording(intent.program, intent.channel)
+            }
+            is PlaybackIntent.CancelRecording -> {
+                cancelRecording(intent.recordingId)
+            }
+            is PlaybackIntent.PlayRecording -> {
+                val dispatcharrUrl = getAuthenticatedDispatcharrUrl()
+                val authUrl = dvrClient.getAuthenticatedRecordingStreamUrl(dispatcharrUrl, intent.recording.streamUrl)
+                val pseudoChannel = ChannelEntity(
+                    url = authUrl,
+                    name = intent.recording.programTitle,
+                    tvgId = intent.recording.channelId,
+                    tvgName = null,
+                    logoUrl = intent.recording.posterUrl,
+                    groupTitle = "Recordings"
+                )
+                onSelectChannel(pseudoChannel)
             }
         }
     }
