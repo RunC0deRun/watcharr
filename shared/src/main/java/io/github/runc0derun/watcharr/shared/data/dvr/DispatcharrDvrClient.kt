@@ -269,6 +269,66 @@ class DispatcharrDvrClient {
         return null
     }
 
+    private fun parseIsoToEpochMs(iso: String): Long {
+        val str = iso.trim()
+        if (str.isEmpty()) return 0L
+        val longVal = str.toLongOrNull()
+        if (longVal != null && longVal > 0L) {
+            return if (longVal < 10_000_000_000L) longVal * 1000L else longVal
+        }
+        val doubleVal = str.toDoubleOrNull()
+        if (doubleVal != null && doubleVal > 0.0) {
+            val longFromDouble = doubleVal.toLong()
+            return if (longFromDouble < 10_000_000_000L) longFromDouble * 1000L else longFromDouble
+        }
+        try {
+            return Instant.parse(str).toEpochMilli()
+        } catch (e: Exception) {}
+
+        val normalized = if (str.contains(" ") && !str.contains("T")) str.replace(" ", "T") else str
+        val withZ = if (!normalized.contains("Z") && !normalized.contains("+") && !normalized.substringAfterLast("T", "").contains("-")) "${normalized}Z" else normalized
+        try {
+            return Instant.parse(withZ).toEpochMilli()
+        } catch (e: Exception) {}
+
+        try {
+            val ldt = java.time.LocalDateTime.parse(normalized.take(19))
+            return ldt.toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
+        } catch (e: Exception) {}
+
+        return 0L
+    }
+
+    private fun parseTimestamp(
+        primaryObj: JSONObject,
+        secondaryObj: JSONObject?,
+        epochKeys: List<String>,
+        isoKeys: List<String>
+    ): Long {
+        val objs = listOfNotNull(primaryObj, secondaryObj)
+        for (obj in objs) {
+            for (key in epochKeys) {
+                if (obj.has(key) && !obj.isNull(key)) {
+                    val rawStr = obj.optString(key, "")
+                    val longVal = rawStr.toLongOrNull() ?: obj.optLong(key, 0L)
+                    if (longVal > 0L) {
+                        return if (longVal < 10_000_000_000L) longVal * 1000L else longVal
+                    }
+                }
+            }
+            for (key in isoKeys) {
+                if (obj.has(key) && !obj.isNull(key)) {
+                    val rawStr = obj.optString(key, "")
+                    if (rawStr.isNotEmpty()) {
+                        val parsed = parseIsoToEpochMs(rawStr)
+                        if (parsed > 0L) return parsed
+                    }
+                }
+            }
+        }
+        return 0L
+    }
+
     suspend fun fetchRecordings(baseUrl: String): Result<List<DvrRecording>> = withContext(Dispatchers.IO) {
         val cleanUrl = baseUrl.trim().removeSuffix("/")
         val sanitizedHost = sanitizeUrl(cleanUrl)
@@ -336,15 +396,19 @@ class DispatcharrDvrClient {
                             else -> ""
                         }
 
-                        val startIso = obj.optString("start_time", progObj?.optString("start_time", "") ?: "")
-                        val stopIso = obj.optString("end_time", progObj?.optString("end_time", "") ?: "")
-                        val start = if (obj.has("startEpochMs")) obj.optLong("startEpochMs")
-                        else if (startIso.isNotEmpty()) try { Instant.parse(startIso).toEpochMilli() } catch (e: Exception) { 0L }
-                        else obj.optLong("start", 0L)
+                        val start = parseTimestamp(
+                            obj,
+                            progObj,
+                            listOf("startEpochMs", "start", "start_epoch", "start_time_epoch", "start_timestamp"),
+                            listOf("start_time", "start_at", "started_at", "start")
+                        )
 
-                        val stop = if (obj.has("stopEpochMs")) obj.optLong("stopEpochMs")
-                        else if (stopIso.isNotEmpty()) try { Instant.parse(stopIso).toEpochMilli() } catch (e: Exception) { 0L }
-                        else obj.optLong("stop", 0L)
+                        val stop = parseTimestamp(
+                            obj,
+                            progObj,
+                            listOf("stopEpochMs", "stop", "end", "end_epoch", "stop_epoch", "end_time_epoch", "stop_timestamp", "end_timestamp"),
+                            listOf("end_time", "stop_time", "end_at", "stop_at", "ended_at", "finished_at", "completed_at", "end", "stop")
+                        )
 
                         val now = System.currentTimeMillis()
                         val rawStatus = (if (obj.has("status")) obj.optString("status") else (customProps?.optString("status", "") ?: "")).trim().lowercase()
@@ -352,9 +416,9 @@ class DispatcharrDvrClient {
                         val status = when {
                             rawStatus.contains("fail") || rawStatus.contains("error") || rawStatus.contains("cancel") -> DvrStatus.FAILED
                             rawStatus.contains("complete") || rawStatus.contains("finish") || rawStatus.contains("recorded") || rawStatus.contains("done") -> DvrStatus.COMPLETED
-                            stop > 0 && now >= stop -> DvrStatus.COMPLETED
-                            start > 0 && stop > 0 && now in start..stop -> DvrStatus.RECORDING
-                            start > 0 && now < start -> DvrStatus.SCHEDULED
+                            stop > 0L && now >= stop -> DvrStatus.COMPLETED
+                            start > 0L && stop > 0L && now in start..stop -> DvrStatus.RECORDING
+                            start > 0L && now < start -> DvrStatus.SCHEDULED
                             rawStatus.isNotEmpty() -> DvrStatus.fromString(rawStatus)
                             else -> DvrStatus.COMPLETED
                         }

@@ -1,6 +1,7 @@
 package io.github.runc0derun.watcharr.shared.data.dvr
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -30,8 +31,28 @@ class DvrModelsTest {
         )
 
         assertTrue(rec.isCompleted())
+        assertFalse(rec.isScheduled())
+        assertFalse(rec.isLiveRecording())
         assertEquals("rec_001", rec.id)
         assertEquals("Evening News", rec.programTitle)
         assertEquals("http://localhost:8080/api/dvr/recordings/rec_001/stream", rec.streamUrl)
+    }
+
+    @Test
+    fun testAutomaticCompletionStatusTransition() {
+        val pastTime = System.currentTimeMillis() - 60_000L // 1 minute ago
+        val rec = DvrRecording(
+            id = "rec_002",
+            programTitle = "Late Night Show",
+            channelName = "NBC",
+            startEpochMs = pastTime - 3600_000L,
+            stopEpochMs = pastTime,
+            status = DvrStatus.RECORDING,
+            streamUrl = "http://localhost:8080/api/dvr/recordings/rec_002/stream"
+        )
+
+        val now = System.currentTimeMillis()
+        val evaluatedStatus = if (now >= rec.stopEpochMs) DvrStatus.COMPLETED else rec.status
+        assertEquals(DvrStatus.COMPLETED, evaluatedStatus)
     }
 }

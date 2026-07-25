@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlin.time.Duration.Companion.seconds
 import java.net.URL
 
@@ -161,6 +162,15 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
                 fetchRecordings()
             }
         }
+
+        viewModelScope.launch {
+            while (isActive) {
+                delay(15_000L)
+                if (_useDispatcharr.value && getAuthenticatedDispatcharrUrl().isNotEmpty()) {
+                    fetchRecordings()
+                }
+            }
+        }
     }
 
     fun setTailnetEnabled(enabled: Boolean) {
@@ -286,8 +296,19 @@ open class BaseIptvViewModel(application: Application) : AndroidViewModel(applic
             val result = dvrClient.fetchRecordings(dispatcharrUrl)
             _isDvrLoading.value = false
             result.onSuccess { list ->
-                _recordings.value = list
-                val keys = list.flatMap { rec ->
+                val now = System.currentTimeMillis()
+                val evaluatedList = list.map { rec ->
+                    if (rec.status != io.github.runc0derun.watcharr.shared.data.dvr.DvrStatus.COMPLETED &&
+                        rec.status != io.github.runc0derun.watcharr.shared.data.dvr.DvrStatus.FAILED &&
+                        rec.stopEpochMs > 0L && now >= rec.stopEpochMs
+                    ) {
+                        rec.copy(status = io.github.runc0derun.watcharr.shared.data.dvr.DvrStatus.COMPLETED)
+                    } else {
+                        rec
+                    }
+                }
+                _recordings.value = evaluatedList
+                val keys = evaluatedList.flatMap { rec ->
                     val set = mutableSetOf<String>()
                     if (!rec.channelId.isNullOrEmpty()) set.add("${rec.channelId}_${rec.startEpochMs}")
                     set.add(rec.programTitle.lowercase())
