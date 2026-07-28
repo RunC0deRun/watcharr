@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.milliseconds
 import androidx.core.net.toUri
+import android.net.Uri
 
 @OptIn(UnstableApi::class)
 class PlayerEngine(private val context: Context) {
@@ -84,14 +85,31 @@ class PlayerEngine(private val context: Context) {
             .setEnableDecoderFallback(true)
             .setMediaCodecSelector(mediaCodecSelector)
 
+        val httpDataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(15000)
+
+        val dataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(context, httpDataSourceFactory)
+        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
+            .setDataSourceFactory(dataSourceFactory)
+
         val player = ExoPlayer.Builder(context, renderersFactory)
+            .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
             .setAudioAttributes(audioAttributes, true)
             .build()
 
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                android.util.Log.d("Watcharr", "onPlaybackStateChanged: state=$state, currentChannel=${currentChannel?.name}, isVideoRestrictedState=$isVideoRestrictedState")
+                val stateName = when(state) {
+                    Player.STATE_IDLE -> "IDLE"
+                    Player.STATE_BUFFERING -> "BUFFERING"
+                    Player.STATE_READY -> "READY"
+                    Player.STATE_ENDED -> "ENDED"
+                    else -> "UNKNOWN($state)"
+                }
+                android.util.Log.d("Watcharr", "onPlaybackStateChanged: $stateName, channel=${currentChannel?.name}, isVideoRestricted=$isVideoRestrictedState")
                 when (state) {
                     Player.STATE_IDLE -> {
                         // Do not overwrite Error state if it was set
@@ -120,6 +138,18 @@ class PlayerEngine(private val context: Context) {
                 _playbackState.value = PlaybackState.Error(errorMessage)
                 scheduleRetry()
             }
+
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                android.util.Log.d("Watcharr", "onTracksChanged: ${tracks.groups.size} track groups")
+                for ((i, group) in tracks.groups.withIndex()) {
+                    val format = group.getTrackFormat(0)
+                    android.util.Log.d("Watcharr", "  Track group $i: type=${format.sampleMimeType}, codecs=${format.codecs}, drmInitData=${format.drmInitData != null}")
+                }
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                android.util.Log.d("Watcharr", "onMediaItemTransition: uri=${mediaItem?.localConfiguration?.uri}, drm=${mediaItem?.localConfiguration?.drmConfiguration != null}, mimeType=${mediaItem?.localConfiguration?.mimeType}")
+            }
         })
 
         return player
@@ -132,7 +162,7 @@ class PlayerEngine(private val context: Context) {
         _playbackState.value = PlaybackState.Loading
 
         scope.launch {
-            val mediaItem = resolveMediaItem(channel.url, channel.toMediaItem().mediaMetadata)
+            val mediaItem = resolveMediaItem(channel.url, channel.toMediaItem().mediaMetadata, channel)
             
             withContext(Dispatchers.Main) {
                 val player = getPlayer()
@@ -144,53 +174,190 @@ class PlayerEngine(private val context: Context) {
         }
     }
 
-    internal suspend fun resolveMediaItem(url: String, metadata: androidx.media3.common.MediaMetadata): MediaItem {
-        android.util.Log.d("Watcharr", "Original play URL: $url")
-        val finalUrl = resolveRedirect(url)
-        android.util.Log.d("Watcharr", "Resolved play URL: $finalUrl")
+    internal fun findChannelId(channel: ChannelEntity?, uri: Uri?): String? {
+        val pathSegments = uri?.pathSegments.takeIf { !it.isNullOrEmpty() } ?: run {
+            val urlStr = channel?.url ?: ""
+            try {
+                java.net.URI(urlStr).path?.split("/")?.filter { it.isNotEmpty() } ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+        val liveIndex = pathSegments.indexOf("live")
+        if (liveIndex != -1 && liveIndex + 1 < pathSegments.size) {
+            return pathSegments[liveIndex + 1]
+        }
+
+        val tvgId = channel?.tvgId?.trim()
+        if (!tvgId.isNullOrEmpty()) {
+            return tvgId
+        }
+
+        val targetChannel = channel ?: currentChannel
+        if (targetChannel != null) {
+            val matched = activeChannelList.firstOrNull {
+                it.name.equals(targetChannel.name, ignoreCase = true) ||
+                        (it.tvgName != null && it.tvgName.equals(targetChannel.name, ignoreCase = true))
+            }
+            if (matched != null) {
+                val matchedTvgId = matched.tvgId?.trim()
+                if (!matchedTvgId.isNullOrEmpty()) {
+                    return matchedTvgId
+                }
+                val matchedUri = try { matched.url.toUri() } catch (e: Exception) { null }
+                val matchedSegments = matchedUri?.pathSegments.takeIf { !it.isNullOrEmpty() } ?: try {
+                    java.net.URI(matched.url).path?.split("/")?.filter { it.isNotEmpty() } ?: emptyList()
+                } catch (e: Exception) { emptyList() }
+                val mLiveIndex = matchedSegments.indexOf("live")
+                if (mLiveIndex != -1 && mLiveIndex + 1 < matchedSegments.size) {
+                    return matchedSegments[mLiveIndex + 1]
+                }
+            }
+        }
+        return null
+    }
+
+    data class ResolvedUrlInfo(
+        val url: String,
+        val contentType: String? = null,
+        val sniffedFormat: String? = null // "hls", "dash", or null (binary/unknown)
+    )
+
+    private suspend fun probeRecordingManifestEndpoint(recordingUrl: String): ResolvedUrlInfo? {
+        val tokenParam = try { recordingUrl.toUri().getQueryParameter("token") } catch (e: Exception) { null }
+        val baseUrl = recordingUrl.substringBefore("/file/").removeSuffix("/")
+        if (baseUrl == recordingUrl || !baseUrl.contains("/recordings/")) return null
+
+        val candidates = listOf(
+            "$baseUrl/hls/index.m3u8",
+            "$baseUrl/index.m3u8",
+            "$baseUrl/master.m3u8",
+            "$baseUrl/manifest.mpd",
+            "$baseUrl/dash/manifest.mpd",
+            "$baseUrl/stream/"
+        )
+
+        for (candidate in candidates) {
+            val fullUrl = if (!tokenParam.isNullOrEmpty()) "$candidate?token=$tokenParam" else candidate
+            android.util.Log.d("Watcharr", "Probing recording manifest candidate: $fullUrl")
+            val probeResult = httpProbe(fullUrl, "HEAD", tokenParam)
+            if (probeResult != null && probeResult.responseCode in 200..299) {
+                val ct = probeResult.contentType?.lowercase() ?: ""
+                android.util.Log.d("Watcharr", "Found valid recording manifest endpoint: $fullUrl, Content-Type=$ct")
+                val sniffed = if (fullUrl.contains(".m3u8") || ct.contains("mpegurl")) "hls" else if (fullUrl.contains(".mpd") || ct.contains("dash")) "dash" else null
+                return ResolvedUrlInfo(fullUrl, probeResult.contentType, sniffed)
+            }
+        }
+        return null
+    }
+
+    internal suspend fun resolveMediaItem(
+        url: String,
+        metadata: androidx.media3.common.MediaMetadata,
+        channel: ChannelEntity? = null
+    ): MediaItem {
+        android.util.Log.d("Watcharr", "resolveMediaItem: Original URL: $url")
+        val resolvedInfo = resolveRedirect(url)
+        val targetChannel = channel ?: currentChannel
+        val isRecording = resolvedInfo.url.contains("/recordings/") || resolvedInfo.url.contains("/dvr/") || targetChannel?.groupTitle == "Recordings"
+
+        var actualUrlInfo = resolvedInfo
+        if (isRecording && resolvedInfo.url.contains("/file/")) {
+            val manifestProbe = probeRecordingManifestEndpoint(resolvedInfo.url)
+            if (manifestProbe != null) {
+                actualUrlInfo = manifestProbe
+            }
+        }
+
+        val finalUrl = actualUrlInfo.url
+        val serverContentType = actualUrlInfo.contentType?.lowercase() ?: ""
+        val sniffedFormat = actualUrlInfo.sniffedFormat
+        android.util.Log.d("Watcharr", "resolveMediaItem: Resolved URL: $finalUrl, Content-Type: $serverContentType, sniffed: $sniffedFormat")
 
         val mediaItemBuilder = MediaItem.Builder()
             .setMediaId(url)
             .setUri(finalUrl)
             .setMediaMetadata(metadata)
-            .setLiveConfiguration(
+
+        // Only apply LiveConfiguration for live streams, not recordings (which are VOD)
+        if (!isRecording) {
+            mediaItemBuilder.setLiveConfiguration(
                 MediaItem.LiveConfiguration.Builder()
                     .setTargetOffsetMs(3000)
                     .setMinPlaybackSpeed(0.95f)
                     .setMaxPlaybackSpeed(1.05f)
                     .build()
             )
+        }
 
-        // Dynamically detect DRM stream proxying and apply Widevine configuration
-        val isHls = finalUrl.contains(".m3u8") || finalUrl.contains("/hls/")
-        val isTs = finalUrl.contains(".ts")
+        // Detect container format from URL patterns, server Content-Type, and content sniffing
+        val isHls = finalUrl.contains(".m3u8") || finalUrl.contains("/hls/") ||
+                serverContentType.contains("mpegurl") || serverContentType.contains("m3u8") ||
+                sniffedFormat == "hls"
+        val isDash = finalUrl.contains(".mpd") || finalUrl.contains("/dash/") ||
+                serverContentType.contains("dash+xml") ||
+                sniffedFormat == "dash"
+        val isTs = finalUrl.contains(".ts") || serverContentType.contains("video/mp2t") || serverContentType.contains("transport-stream")
+        val isMp4 = finalUrl.contains(".mp4") || serverContentType.contains("video/mp4")
+        val isMkv = finalUrl.contains(".mkv") || serverContentType.contains("matroska") || serverContentType.contains("webm")
+
         val uri = try { finalUrl.toUri() } catch (e: Exception) { null }
+        val originalUri = try { url.toUri() } catch (e: Exception) { null }
         val pathSegments = uri?.pathSegments ?: emptyList()
         val liveIndex = pathSegments.indexOf("live")
-        
-        // The Widevine DRM proxy has exactly one segment after "live" (i.e. /live/channel_id)
-        val isWidevineProxy = liveIndex != -1 && pathSegments.size == liveIndex + 2
 
-        if (finalUrl.contains("/live/") && isWidevineProxy && !isHls && !isTs) {
-            mediaItemBuilder.setMimeType("application/dash+xml")
+        val isLiveWidevineProxy = liveIndex != -1 && pathSegments.size == liveIndex + 2 && !isHls
+
+        val targetChannelId = findChannelId(targetChannel, uri)
+
+        // Set MIME type based on detected format
+        val mimeType = when {
+            isLiveWidevineProxy || isDash -> "application/dash+xml"
+            isHls -> "application/x-mpegURL"
+            isMp4 -> "video/mp4"
+            isTs -> "video/mp2t"
+            isMkv -> "video/x-matroska"
+            else -> null
+        }
+        if (mimeType != null) {
+            mediaItemBuilder.setMimeType(mimeType)
+        }
+        android.util.Log.d("Watcharr", "resolveMediaItem: isRecording=$isRecording, isHls=$isHls, isDash=$isDash, isMkv=$isMkv, isLiveProxy=$isLiveWidevineProxy, mimeType=$mimeType, channelId=$targetChannelId")
+
+        // Apply DRM for live Widevine proxy, DASH streams, AND encrypted recordings.
+        // Dispatcharr does NOT decrypt during recording — the device must decrypt at playback.
+        if (targetChannelId != null && (isLiveWidevineProxy || isDash || isRecording)) {
             try {
-                if (liveIndex + 1 < pathSegments.size) {
-                    val channelId = pathSegments[liveIndex + 1]
-                    val scheme = uri?.scheme ?: "https"
-                    val authority = uri?.authority
-                    if (authority != null) {
-                        val licenseUri = "$scheme://$authority/license/$channelId"
-                        val drmConfig = MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
-                            .setLicenseUri(licenseUri)
-                            .build()
-                        mediaItemBuilder.setDrmConfiguration(drmConfig)
+                // Use the original URL's authority for license URI (not the resolved/CDN URL)
+                val licenseAuthority = originalUri?.authority ?: uri?.authority
+                val licenseScheme = originalUri?.scheme ?: uri?.scheme ?: "http"
+                if (licenseAuthority != null) {
+                    val baseLicenseUri = "$licenseScheme://$licenseAuthority/license/$targetChannelId"
+                    val tokenParam = uri?.getQueryParameter("token")
+                        ?: originalUri?.getQueryParameter("token")
+
+                    val licenseUri = if (!tokenParam.isNullOrEmpty()) {
+                        "$baseLicenseUri?token=$tokenParam"
+                    } else {
+                        baseLicenseUri
                     }
+
+                    android.util.Log.d("Watcharr", "resolveMediaItem: DRM licenseUri=$licenseUri")
+
+                    val drmConfigBuilder = MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
+                        .setLicenseUri(licenseUri)
+                        .setMultiSession(true) // Recordings may span multiple key periods
+                        .setForceDefaultLicenseUri(true) // Always use our license proxy
+
+                    if (!tokenParam.isNullOrEmpty()) {
+                        drmConfigBuilder.setLicenseRequestHeaders(mapOf("Authorization" to "Bearer $tokenParam"))
+                    }
+
+                    mediaItemBuilder.setDrmConfiguration(drmConfigBuilder.build())
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("Watcharr", "resolveMediaItem: Failed to configure DRM", e)
             }
-        } else if (isHls) {
-            mediaItemBuilder.setMimeType("application/x-mpegURL")
         }
 
         return mediaItemBuilder.build()
@@ -249,11 +416,20 @@ class PlayerEngine(private val context: Context) {
     }
 
     fun setVideoEnabled(enabled: Boolean) {
-        val player = exoPlayer ?: return
-        val parameters = player.trackSelectionParameters.buildUpon()
-            .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, !enabled)
-            .build()
-        player.trackSelectionParameters = parameters
+        isVideoRestrictedState = !enabled
+        exoPlayer?.let { player ->
+            val videoTrackType = androidx.media3.common.C.TRACK_TYPE_VIDEO
+            val parameters = player.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(videoTrackType, !enabled)
+                .build()
+            player.trackSelectionParameters = parameters
+        }
+        currentChannel?.let { ch ->
+            if (_playbackState.value is PlaybackState.Playing) {
+                _playbackState.value = PlaybackState.Playing(ch, isVideoRestrictedState)
+            }
+        }
     }
 
     fun updateVideoRestriction(restricted: Boolean) {
@@ -286,28 +462,134 @@ class PlayerEngine(private val context: Context) {
         }
     }
 
-    private suspend fun resolveRedirect(urlStr: String): String {
+    /**
+     * Resolves redirects and detects content format.
+     * Uses HEAD first for efficiency, falls back to a small-range GET if HEAD fails
+     * or returns no Content-Type. For URLs without file extensions (like recording
+     * endpoints), also sniffs the first bytes to distinguish HLS/DASH/binary.
+     */
+    private suspend fun resolveRedirect(urlStr: String): ResolvedUrlInfo {
         return withContext(Dispatchers.IO) {
+            val originalToken = try { urlStr.toUri().getQueryParameter("token") } catch (e: Exception) { null }
+
+            // Step 1: Try HEAD request for redirect resolution and Content-Type
+            try {
+                val headResult = httpProbe(urlStr, "HEAD", originalToken)
+                if (headResult != null) {
+                    if (headResult.isRedirect) {
+                        var resolved = headResult.location!!
+                        if (!originalToken.isNullOrEmpty() && !resolved.contains("token=")) {
+                            val sep = if (resolved.contains("?")) "&" else "?"
+                            resolved = "$resolved${sep}token=$originalToken"
+                        }
+                        return@withContext resolveRedirect(resolved)
+                    }
+                    // HEAD succeeded with a useful Content-Type — no need to sniff
+                    val ct = headResult.contentType?.lowercase() ?: ""
+                    if (ct.isNotEmpty() && !ct.contains("octet-stream") && !ct.contains("html")) {
+                        android.util.Log.d("Watcharr", "resolveRedirect: HEAD Content-Type=$ct for $urlStr")
+                        return@withContext ResolvedUrlInfo(urlStr, headResult.contentType)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("Watcharr", "resolveRedirect: HEAD failed for $urlStr: ${e.message}")
+            }
+
+            // Step 2: Small-range GET to sniff content format (reads first 32 bytes)
             try {
                 val url = java.net.URL(urlStr)
                 val conn = url.openConnection() as java.net.HttpURLConnection
                 conn.instanceFollowRedirects = false
-                conn.connectTimeout = 3000
-                conn.readTimeout = 3000
+                conn.connectTimeout = 5000
+                conn.readTimeout = 5000
                 conn.requestMethod = "GET"
+                conn.setRequestProperty("Range", "bytes=0-31")
+                if (!originalToken.isNullOrEmpty()) {
+                    conn.setRequestProperty("Authorization", "Bearer $originalToken")
+                }
+
                 val responseCode = conn.responseCode
+                val contentType = conn.contentType
+
                 if (responseCode in 300..399) {
                     val location = conn.getHeaderField("Location")
+                    conn.disconnect()
                     if (!location.isNullOrEmpty()) {
-                        val resolved = java.net.URL(java.net.URL(urlStr), location).toString()
-                        return@withContext resolved
+                        var resolved = java.net.URL(java.net.URL(urlStr), location).toString()
+                        if (!originalToken.isNullOrEmpty() && !resolved.contains("token=")) {
+                            val sep = if (resolved.contains("?")) "&" else "?"
+                            resolved = "$resolved${sep}token=$originalToken"
+                        }
+                        return@withContext resolveRedirect(resolved)
+                    }
+                }
+
+                // Read first bytes to sniff format
+                var sniffedFormat: String? = null
+                if (responseCode in 200..299) {
+                    try {
+                        val bytes = conn.inputStream.use { it.readNBytes(32) }
+                        sniffedFormat = sniffContentFormat(bytes)
+                        android.util.Log.d("Watcharr", "resolveRedirect: Sniffed format=$sniffedFormat, Content-Type=$contentType, first bytes=${bytes.take(16).joinToString(" ") { "%02x".format(it) }}")
+                    } catch (e: Exception) {
+                        android.util.Log.w("Watcharr", "resolveRedirect: Failed to sniff content: ${e.message}")
                     }
                 }
                 conn.disconnect()
+                return@withContext ResolvedUrlInfo(urlStr, contentType, sniffedFormat)
             } catch (e: Exception) {
-                android.util.Log.e("Watcharr", "Failed to resolve redirect for $urlStr", e)
+                android.util.Log.e("Watcharr", "resolveRedirect: Range GET failed for $urlStr", e)
             }
-            return@withContext urlStr
+
+            return@withContext ResolvedUrlInfo(urlStr, null, null)
+        }
+    }
+
+    private data class HttpProbeResult(
+        val responseCode: Int,
+        val contentType: String?,
+        val location: String?,
+        val isRedirect: Boolean
+    )
+
+    private fun httpProbe(urlStr: String, method: String, token: String?): HttpProbeResult? {
+        var conn: java.net.HttpURLConnection? = null
+        try {
+            val url = java.net.URL(urlStr)
+            conn = url.openConnection() as java.net.HttpURLConnection
+            conn.instanceFollowRedirects = false
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            conn.requestMethod = method
+            if (!token.isNullOrEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer $token")
+            }
+            val responseCode = conn.responseCode
+            val contentType = conn.contentType
+            val location = if (responseCode in 300..399) {
+                val loc = conn.getHeaderField("Location")
+                if (!loc.isNullOrEmpty()) java.net.URL(java.net.URL(urlStr), loc).toString() else null
+            } else null
+            return HttpProbeResult(responseCode, contentType, location, responseCode in 300..399)
+        } catch (e: Exception) {
+            return null
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /**
+     * Sniff content format from the first bytes of a response.
+     * Returns "hls" for HLS playlists, "dash" for DASH manifests, or null for binary/unknown.
+     */
+    private fun sniffContentFormat(bytes: ByteArray): String? {
+        if (bytes.isEmpty()) return null
+        val text = try { String(bytes, Charsets.UTF_8) } catch (e: Exception) { return null }
+        val trimmed = text.trimStart()
+        return when {
+            trimmed.startsWith("#EXTM3U") -> "hls"
+            trimmed.startsWith("<?xml") || trimmed.startsWith("<MPD") -> "dash"
+            else -> null
         }
     }
 

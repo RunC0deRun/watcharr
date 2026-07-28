@@ -120,7 +120,7 @@ class PlaybackService : MediaLibraryService() {
                             playerEngine.setActiveChannelList(channels)
                             playerEngine.setCurrentChannel(channelToPlay)
                         }
-                        playerEngine.resolveMediaItem(channelToPlay.url, channelToPlay.toMediaItem().mediaMetadata)
+                        playerEngine.resolveMediaItem(channelToPlay.url, channelToPlay.toMediaItem().mediaMetadata, channelToPlay)
                     } else {
                         null
                     }
@@ -238,11 +238,11 @@ class PlaybackService : MediaLibraryService() {
             val future = SettableFuture.create<MutableList<MediaItem>>()
             serviceScope.launch(Dispatchers.IO) {
                 try {
-                    val resolvedItems = mediaItems.map { item ->
-                        playerEngine.resolveMediaItem(item.mediaId, item.mediaMetadata)
-                    }.toMutableList()
-                    
                     val channels = database.channelDao().getAllChannels()
+                    val resolvedItems = mediaItems.map { item ->
+                        val ch = channels.firstOrNull { it.url == item.mediaId }
+                        playerEngine.resolveMediaItem(item.mediaId, item.mediaMetadata, ch)
+                    }.toMutableList()
                     val firstItem = resolvedItems.firstOrNull()
                     if (firstItem != null) {
                         val channel = channels.firstOrNull { it.url == firstItem.mediaId }

@@ -390,7 +390,9 @@ class DispatcharrDvrClient {
                         val channelId = when {
                             channelObj != null && channelObj.has("id") -> channelObj.optString("id")
                             channelObj != null && channelObj.has("number") -> channelObj.optString("number")
-                            customProps != null && customProps.has("tvg_id") -> customProps.optString("tvg_id")
+                            customProps != null && customProps.has("tvg_id") && customProps.optString("tvg_id").isNotEmpty() -> customProps.optString("tvg_id")
+                            customProps != null && customProps.has("channel_id") && customProps.optString("channel_id").isNotEmpty() -> customProps.optString("channel_id")
+                            obj.has("channel_id") && obj.optString("channel_id").isNotEmpty() -> obj.optString("channel_id")
                             obj.has("channel") && obj.optJSONObject("channel") == null -> obj.optString("channel")
                             obj.has("channelId") -> obj.optString("channelId")
                             else -> ""
