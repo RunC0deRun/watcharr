@@ -34,7 +34,13 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
                 _dispatcharrUsername,
                 _dispatcharrPassword,
                 tailnetFlow,
-                dvrInfoFlow
+                dvrInfoFlow,
+                combine(_dvrRecordingMode, _dvrStorageType, _nfsSmbProtocol, _nfsSmbHost, _nfsSmbSharePath) { mode, storage, proto, host, path ->
+                    DvrConfigInfo(mode, storage, proto, host, path)
+                },
+                combine(_nfsSmbUser, _nfsSmbPass) { user, pass ->
+                    DvrCredsInfo(user, pass)
+                }
             ) { args ->
                 val selectedGroup = args[0] as String?
                 val completed = args[1] as Boolean
@@ -44,6 +50,8 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
                 val dispatcharrPassword = args[5] as String
                 val tailnet = args[6] as TailnetInfo
                 val dvr = args[7] as DvrInfo
+                val dvrConfig = args[8] as DvrConfigInfo
+                val dvrCreds = args[9] as DvrCredsInfo
                 SettingsInfo(
                     selectedGroup = selectedGroup,
                     isOnboardingCompleted = completed,
@@ -56,7 +64,14 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
                     tsnetStatus = tailnet.status,
                     recordings = dvr.recordings,
                     isDvrLoading = dvr.isDvrLoading,
-                    scheduledProgramKeys = dvr.scheduledProgramKeys
+                    scheduledProgramKeys = dvr.scheduledProgramKeys,
+                    dvrRecordingMode = dvrConfig.mode,
+                    dvrStorageType = dvrConfig.storage,
+                    nfsSmbProtocol = dvrConfig.proto,
+                    nfsSmbHost = dvrConfig.host,
+                    nfsSmbSharePath = dvrConfig.path,
+                    nfsSmbUser = dvrCreds.user,
+                    nfsSmbPass = dvrCreds.pass
                 )
             }
 
@@ -115,7 +130,14 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
                     tsnetStatus = settingsInfo.tsnetStatus,
                     recordings = settingsInfo.recordings,
                     isDvrLoading = settingsInfo.isDvrLoading,
-                    scheduledProgramKeys = settingsInfo.scheduledProgramKeys
+                    scheduledProgramKeys = settingsInfo.scheduledProgramKeys,
+                    dvrRecordingMode = settingsInfo.dvrRecordingMode,
+                    dvrStorageType = settingsInfo.dvrStorageType,
+                    nfsSmbProtocol = settingsInfo.nfsSmbProtocol,
+                    nfsSmbHost = settingsInfo.nfsSmbHost,
+                    nfsSmbSharePath = settingsInfo.nfsSmbSharePath,
+                    nfsSmbUser = settingsInfo.nfsSmbUser,
+                    nfsSmbPass = settingsInfo.nfsSmbPass
                 )
             }.collect { state ->
                 _uiState.value = state.copy(isInitialized = true)
@@ -189,6 +211,19 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
         val status: String
     )
 
+    private data class DvrConfigInfo(
+        val mode: String,
+        val storage: String,
+        val proto: String,
+        val host: String,
+        val path: String
+    )
+
+    private data class DvrCredsInfo(
+        val user: String,
+        val pass: String
+    )
+
     private data class SettingsInfo(
         val selectedGroup: String?,
         val isOnboardingCompleted: Boolean,
@@ -201,6 +236,13 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
         val tsnetStatus: String,
         val recordings: List<io.github.runc0derun.watcharr.shared.data.dvr.DvrRecording>,
         val isDvrLoading: Boolean,
-        val scheduledProgramKeys: Set<String>
+        val scheduledProgramKeys: Set<String>,
+        val dvrRecordingMode: String,
+        val dvrStorageType: String,
+        val nfsSmbProtocol: String,
+        val nfsSmbHost: String,
+        val nfsSmbSharePath: String,
+        val nfsSmbUser: String,
+        val nfsSmbPass: String
     )
 }

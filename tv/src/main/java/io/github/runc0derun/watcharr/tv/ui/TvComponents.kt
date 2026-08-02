@@ -81,6 +81,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 
 @Composable
 fun WatcharrLogo(modifier: Modifier = Modifier) {
@@ -2617,6 +2619,10 @@ fun TvProgramDetailScreen(
                         rec.programTitle.trim().equals(program.title.trim(), ignoreCase = true)
                     }
 
+                    val targetCh = channel ?: uiState.channels.firstOrNull { it.url == program.channelId || it.tvgId == program.channelId || it.name == program.channelId }
+                    val isDrm = targetCh?.isDrmChannel() == true
+                    var showDrmPopup by remember { mutableStateOf(false) }
+
                     val isScheduled = existingRec?.status == io.github.runc0derun.watcharr.shared.data.dvr.DvrStatus.SCHEDULED ||
                             existingRec?.status == io.github.runc0derun.watcharr.shared.data.dvr.DvrStatus.RECORDING ||
                             uiState.scheduledProgramKeys.contains(program.title.lowercase())
@@ -2629,57 +2635,111 @@ fun TvProgramDetailScreen(
                     }
 
                     var isRecFocused by remember { mutableStateOf(false) }
-                    Box(
-                        modifier = Modifier
-                            .onFocusChanged { isRecFocused = it.isFocused }
-                            .focusable()
-                            .onKeyEvent { keyEvent ->
-                                if (keyEvent.type == KeyEventType.KeyUp &&
-                                    (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
-                                ) {
+                    Box {
+                        Box(
+                            modifier = Modifier
+                                .onFocusChanged { isRecFocused = it.isFocused }
+                                .focusable()
+                                .onKeyEvent { keyEvent ->
+                                    if (keyEvent.type == KeyEventType.KeyUp &&
+                                        (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                                    ) {
+                                        when {
+                                            isCompleted && existingRec != null -> {
+                                                onPlayRecording?.invoke(existingRec)
+                                                onDismiss()
+                                            }
+                                            isScheduled -> {
+                                                val recId = existingRec?.id ?: ""
+                                                if (recId.isNotEmpty()) onCancelRecording?.invoke(recId)
+                                                onDismiss()
+                                            }
+                                            isDrm -> {
+                                                showDrmPopup = !showDrmPopup
+                                            }
+                                            else -> {
+                                                onScheduleRecording?.invoke(program, channel)
+                                                onDismiss()
+                                            }
+                                        }
+                                        true
+                                    } else false
+                                }
+                                .clickable {
                                     when {
-                                        isCompleted && existingRec != null -> onPlayRecording?.invoke(existingRec)
+                                        isCompleted && existingRec != null -> {
+                                            onPlayRecording?.invoke(existingRec)
+                                            onDismiss()
+                                        }
                                         isScheduled -> {
                                             val recId = existingRec?.id ?: ""
                                             if (recId.isNotEmpty()) onCancelRecording?.invoke(recId)
+                                            onDismiss()
                                         }
-                                        else -> onScheduleRecording?.invoke(program, channel)
+                                        isDrm -> {
+                                            showDrmPopup = !showDrmPopup
+                                        }
+                                        else -> {
+                                            onScheduleRecording?.invoke(program, channel)
+                                            onDismiss()
+                                        }
                                     }
-                                    onDismiss()
-                                    true
-                                } else false
-                            }
-                            .clickable {
-                                when {
-                                    isCompleted && existingRec != null -> onPlayRecording?.invoke(existingRec)
-                                    isScheduled -> {
-                                        val recId = existingRec?.id ?: ""
-                                        if (recId.isNotEmpty()) onCancelRecording?.invoke(recId)
-                                    }
-                                    else -> onScheduleRecording?.invoke(program, channel)
                                 }
-                                onDismiss()
+                                .background(
+                                    color = if (!isCompleted && !isScheduled && isDrm) {
+                                        Color.Gray.copy(alpha = 0.4f)
+                                    } else if (isRecFocused) {
+                                        if (isCompleted) MaterialTheme.colorScheme.primary else Color.Red
+                                    } else MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(20.dp)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (!isCompleted && !isScheduled && isDrm) {
+                                        Color.Gray.copy(alpha = 0.6f)
+                                    } else if (isRecFocused) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                    shape = RoundedCornerShape(20.dp)
+                                )
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = recButtonText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (!isCompleted && !isScheduled && isDrm) {
+                                    Color.LightGray
+                                } else if (isRecFocused) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        if (showDrmPopup) {
+                            Popup(
+                                alignment = Alignment.BottomCenter,
+                                onDismissRequest = { showDrmPopup = false }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .background(
+                                            color = MaterialTheme.colorScheme.surfaceVariant,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .border(
+                                            width = 1.dp,
+                                            color = Color.Gray.copy(alpha = 0.3f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = "The channel contains DRM",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-                            .background(
-                                color = if (isRecFocused) {
-                                    if (isCompleted) MaterialTheme.colorScheme.primary else Color.Red
-                                } else MaterialTheme.colorScheme.surface,
-                                shape = RoundedCornerShape(20.dp)
-                            )
-                            .border(
-                                width = 1.dp,
-                                color = if (isRecFocused) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                                shape = RoundedCornerShape(20.dp)
-                            )
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = recButtonText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isRecFocused) Color.White else MaterialTheme.colorScheme.onSurface
-                        )
+                        }
                     }
                 }
 
@@ -3654,6 +3714,7 @@ fun TvRecordingsScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TvRecordingCardItem(
     recording: DvrRecording,
@@ -3661,144 +3722,197 @@ fun TvRecordingCardItem(
     onDelete: () -> Unit
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    var showActionMenu by remember { mutableStateOf(false) }
+    // Set true when the long-press opens the menu so the matching key-up / touch-up
+    // can be consumed cleanly without triggering any action.
+    var pendingRelease by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .onFocusChanged { isFocused = it.isFocused }
-            .focusable()
-            .onKeyEvent { keyEvent ->
-                if (keyEvent.type == KeyEventType.KeyUp &&
-                    (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
-                ) {
-                    if (recording.isCompleted()) onPlay() else onDelete()
-                    true
-                } else false
-            }
-            .clickable {
-                if (recording.isCompleted()) onPlay() else onDelete()
-            }
-            .background(
-                color = if (isFocused) MaterialTheme.colorScheme.surfaceVariant
-                        else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(12.dp)
-            )
-            .border(
-                width = if (isFocused) 2.dp else 0.dp,
-                color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp)
-                    .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!recording.posterUrl.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = recording.posterUrl,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Text("DVR", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+    // Outer Box so we can overlay the Popup without affecting card layout
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { isFocused = it.isFocused }
+                .focusable()
+                .onKeyEvent { keyEvent ->
+                    when {
+                        // Long-press detected (repeated KeyDown): open the menu and
+                        // remember that the matching KeyUp must be swallowed.
+                        keyEvent.type == KeyEventType.KeyDown &&
+                        (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter) &&
+                        (keyEvent.nativeKeyEvent.repeatCount > 0 || keyEvent.nativeKeyEvent.isLongPress) -> {
+                            pendingRelease = true
+                            showActionMenu = true
+                            true
+                        }
+                        // Consume the KeyUp that was paired with the long-press.
+                        keyEvent.type == KeyEventType.KeyUp &&
+                        (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter) &&
+                        pendingRelease -> {
+                            pendingRelease = false
+                            true  // consumed — nothing happens on release
+                        }
+                        // Normal short press: act on KeyUp as usual.
+                        keyEvent.type == KeyEventType.KeyUp &&
+                        (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter) -> {
+                            if (!showActionMenu) {
+                                if (recording.isCompleted()) onPlay() else showActionMenu = true
+                            }
+                            true
+                        }
+                        keyEvent.type == KeyEventType.KeyUp && keyEvent.key == Key.Menu -> {
+                            showActionMenu = true
+                            true
+                        }
+                        else -> false
+                    }
                 }
-            }
-
-            Text(
-                text = recording.programTitle,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = recording.channelName,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.secondary
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                .combinedClickable(
+                    onClick = {
+                        // combinedClickable fires onClick even after onLongClick on some Compose
+                        // versions. Guard with showActionMenu to prevent double-triggering.
+                        if (!showActionMenu) {
+                            if (recording.isCompleted()) onPlay() else showActionMenu = true
+                        }
+                    },
+                    onLongClick = {
+                        pendingRelease = true
+                        showActionMenu = true
+                    }
+                )
+                .background(
+                    color = if (isFocused) MaterialTheme.colorScheme.surfaceVariant
+                            else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .border(
+                    width = if (isFocused) 2.dp else 0.dp,
+                    color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    shape = RoundedCornerShape(12.dp)
+                )
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                        .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!recording.posterUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = recording.posterUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text("DVR", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+
                 Text(
-                    text = formatTimeRange(recording.startEpochMs, recording.stopEpochMs),
-                    style = MaterialTheme.typography.labelSmall,
+                    text = recording.programTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = recording.channelName,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary
                 )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (recording.isCompleted()) {
-                        var isPlayFocused by remember { mutableStateOf(false) }
-                        Box(
-                            modifier = Modifier
-                                .onFocusChanged { isPlayFocused = it.isFocused }
-                                .focusable()
-                                .onKeyEvent { keyEvent ->
-                                    if (keyEvent.type == KeyEventType.KeyUp &&
-                                        (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
-                                    ) {
-                                        onPlay()
-                                        true
-                                    } else false
-                                }
-                                .clickable { onPlay() }
-                                .background(
-                                    color = if (isPlayFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "▶ Play",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isPlayFocused) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = formatTimeRange(recording.startEpochMs, recording.stopEpochMs),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Text(
+                        text = if (recording.isCompleted()) "▶ Ready to play" else recording.status.name,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (recording.isCompleted()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    )
+                }
+            }
+        }
 
-                    var isDeleteFocused by remember { mutableStateOf(false) }
-                    Box(
-                        modifier = Modifier
-                            .onFocusChanged { isDeleteFocused = it.isFocused }
-                            .focusable()
-                            .onKeyEvent { keyEvent ->
-                                if (keyEvent.type == KeyEventType.KeyUp &&
-                                    (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
-                                ) {
-                                    onDelete()
-                                    true
-                                } else false
-                            }
-                            .clickable { onDelete() }
-                            .background(
-                                color = if (isDeleteFocused) Color.Red else Color.Transparent,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        contentAlignment = Alignment.Center
+        // Action menu as a focusable Popup so the TV remote can navigate the buttons.
+        //
+        // When the menu opens after a long press, pendingRelease = true.
+        // onPreviewKeyEvent on the root Box intercepts key events BEFORE any child
+        // (including the focused Button) sees them. So that first KeyUp from releasing
+        // the remote is consumed here, and the button never fires.
+        // After that, pendingRelease = false and the remote works normally.
+        if (showActionMenu) {
+            Popup(
+                alignment = Alignment.Center,
+                onDismissRequest = { showActionMenu = false },
+                properties = PopupProperties(focusable = true)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .onPreviewKeyEvent { keyEvent ->
+                            if (pendingRelease &&
+                                keyEvent.type == KeyEventType.KeyUp &&
+                                (keyEvent.key == Key.DirectionCenter || keyEvent.key == Key.Enter)
+                            ) {
+                                pendingRelease = false
+                                true // consumed — don't let any Button child see this
+                            } else false
+                        }
+                        .background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(16.dp))
+                        .padding(24.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.width(360.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text(
-                            text = "Delete",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDeleteFocused) Color.White else Color.Red
-                        )
+                        Text(recording.programTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text(recording.channelName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+
+                        if (recording.isCompleted()) {
+                            Button(
+                                onClick = {
+                                    showActionMenu = false
+                                    onPlay()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("▶ Play Recording")
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                showActionMenu = false
+                                onDelete()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("🗑️ Delete Recording")
+                        }
+                        Button(
+                            onClick = { showActionMenu = false },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.colors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Text("Cancel")
+                        }
                     }
                 }
             }
         }
     }
 }
-

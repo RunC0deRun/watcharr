@@ -28,11 +28,18 @@ data class DvrRecording(
     val status: DvrStatus,
     val streamUrl: String,
     val posterUrl: String? = null,
-    val description: String? = null
+    val description: String? = null,
+    val recordingEngine: String = "DISPATCHARR", // "WATCHARR" or "DISPATCHARR"
+    val storageType: String = "ON_DEVICE",       // "ON_DEVICE" or "NETWORK_SHARE"
+    val localFilePath: String? = null,
+    val isDrmDecrypted: Boolean = false,
+    val drmKeySetId: String? = null,
+    val errorReason: String? = null
 ) {
     fun isLiveRecording(): Boolean = status == DvrStatus.RECORDING
     fun isScheduled(): Boolean = status == DvrStatus.SCHEDULED
     fun isCompleted(): Boolean = status == DvrStatus.COMPLETED
+    fun isWatcharrLocal(): Boolean = recordingEngine == "WATCHARR"
 }
 
 data class ScheduleRecordingRequest(

@@ -51,7 +51,13 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
                 _dispatcharrPassword,
                 setupFlow,
                 tailnetFlow,
-                dvrInfoFlow
+                dvrInfoFlow,
+                combine(_dvrRecordingMode, _dvrStorageType, _nfsSmbProtocol, _nfsSmbHost, _nfsSmbSharePath) { mode, storage, proto, host, path ->
+                    DvrConfigInfo(mode, storage, proto, host, path)
+                },
+                combine(_nfsSmbUser, _nfsSmbPass) { user, pass ->
+                    DvrCredsInfo(user, pass)
+                }
             ) { args ->
                 val selectedGroup = args[0] as String?
                 val completed = args[1] as Boolean
@@ -62,6 +68,8 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
                 val setupInfo = args[6] as SetupInfo
                 val tailnet = args[7] as TailnetInfo
                 val dvr = args[8] as DvrInfo
+                val dvrConfig = args[9] as DvrConfigInfo
+                val dvrCreds = args[10] as DvrCredsInfo
                 SettingsInfo(
                     selectedGroup = selectedGroup,
                     isOnboardingCompleted = completed,
@@ -76,7 +84,14 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
                     tsnetStatus = tailnet.status,
                     recordings = dvr.recordings,
                     isDvrLoading = dvr.isDvrLoading,
-                    scheduledProgramKeys = dvr.scheduledProgramKeys
+                    scheduledProgramKeys = dvr.scheduledProgramKeys,
+                    dvrRecordingMode = dvrConfig.mode,
+                    dvrStorageType = dvrConfig.storage,
+                    nfsSmbProtocol = dvrConfig.proto,
+                    nfsSmbHost = dvrConfig.host,
+                    nfsSmbSharePath = dvrConfig.path,
+                    nfsSmbUser = dvrCreds.user,
+                    nfsSmbPass = dvrCreds.pass
                 )
             }
 
@@ -139,7 +154,14 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
                     tsnetStatus = settingsInfo.tsnetStatus,
                     recordings = settingsInfo.recordings,
                     isDvrLoading = settingsInfo.isDvrLoading,
-                    scheduledProgramKeys = settingsInfo.scheduledProgramKeys
+                    scheduledProgramKeys = settingsInfo.scheduledProgramKeys,
+                    dvrRecordingMode = settingsInfo.dvrRecordingMode,
+                    dvrStorageType = settingsInfo.dvrStorageType,
+                    nfsSmbProtocol = settingsInfo.nfsSmbProtocol,
+                    nfsSmbHost = settingsInfo.nfsSmbHost,
+                    nfsSmbSharePath = settingsInfo.nfsSmbSharePath,
+                    nfsSmbUser = settingsInfo.nfsSmbUser,
+                    nfsSmbPass = settingsInfo.nfsSmbPass
                 )
             }.collect { state ->
                 _uiState.value = state.copy(isInitialized = true)
@@ -190,9 +212,19 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
         dispatcharrUrl: String?,
         useDispatcharr: Boolean,
         dispatcharrUsername: String = "",
-        dispatcharrPassword: String = ""
+        dispatcharrPassword: String = "",
+        dvrRecordingMode: String = "WATCHARR",
+        dvrStorageType: String = "ON_DEVICE",
+        nfsSmbProtocol: String = "SMB",
+        nfsSmbHost: String = "",
+        nfsSmbSharePath: String = "",
+        nfsSmbUser: String = "",
+        nfsSmbPass: String = ""
     ) {
-        completeOnboarding(playlistUrl, epgUrl, dispatcharrUrl, useDispatcharr, dispatcharrUsername, dispatcharrPassword)
+        completeOnboarding(
+            playlistUrl, epgUrl, dispatcharrUrl, useDispatcharr, dispatcharrUsername, dispatcharrPassword,
+            dvrRecordingMode, dvrStorageType, nfsSmbProtocol, nfsSmbHost, nfsSmbSharePath, nfsSmbUser, nfsSmbPass
+        )
         stopSetupServer()
     }
 
@@ -234,6 +266,19 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
         val status: String
     )
 
+    private data class DvrConfigInfo(
+        val mode: String,
+        val storage: String,
+        val proto: String,
+        val host: String,
+        val path: String
+    )
+
+    private data class DvrCredsInfo(
+        val user: String,
+        val pass: String
+    )
+
     private data class SettingsInfo(
         val selectedGroup: String?,
         val isOnboardingCompleted: Boolean,
@@ -248,6 +293,13 @@ class TvViewModel(application: Application) : BaseIptvViewModel(application) {
         val tsnetStatus: String,
         val recordings: List<io.github.runc0derun.watcharr.shared.data.dvr.DvrRecording>,
         val isDvrLoading: Boolean,
-        val scheduledProgramKeys: Set<String>
+        val scheduledProgramKeys: Set<String>,
+        val dvrRecordingMode: String,
+        val dvrStorageType: String,
+        val nfsSmbProtocol: String,
+        val nfsSmbHost: String,
+        val nfsSmbSharePath: String,
+        val nfsSmbUser: String,
+        val nfsSmbPass: String
     )
 }

@@ -76,6 +76,46 @@ class PlayerEngineDrmTest {
         val channelId = playerEngine.findChannelId(recordingChannel, null)
         assertNull(channelId)
     }
+
+    @Test
+    fun testNon2xxHeadResponseIgnored() {
+        // Simulates a HEAD probe returning HTTP 405 Method Not Allowed with Content-Type: application/json
+        val responseCode = 405
+        val contentType = "application/json"
+        val isValidHeadMediaResponse = responseCode in 200..299 &&
+                contentType.lowercase().isNotEmpty() &&
+                !contentType.lowercase().contains("octet-stream") &&
+                !contentType.lowercase().contains("html") &&
+                !contentType.lowercase().contains("json")
+
+        assertEquals(false, isValidHeadMediaResponse)
+    }
+
+    @Test
+    fun testRecordingChannelIdResolution() {
+        val playerEngine = PlayerEngineTestable()
+        val liveChannel = ChannelEntity(
+            url = "https://delta-bridge.jstienstra.nl/live/4",
+            name = "NPO 1",
+            tvgId = "4",
+            tvgName = "NPO 1",
+            logoUrl = null,
+            groupTitle = "General"
+        )
+        playerEngine.setActiveChannelList(listOf(liveChannel))
+
+        val dualFileRecordingChannel = ChannelEntity(
+            url = "/data/user/0/io.github.runc0derun.watcharr/files/Recordings/Watcharr_Show_1234_video.mp4|/data/user/0/io.github.runc0derun.watcharr/files/Recordings/Watcharr_Show_1234_audio.mp4",
+            name = "NPO 1",
+            tvgId = null,
+            tvgName = null,
+            logoUrl = null,
+            groupTitle = "Recordings"
+        )
+
+        val channelId = playerEngine.findChannelId(dualFileRecordingChannel, null)
+        assertEquals("4", channelId)
+    }
 }
 
 private class PlayerEngineTestable {

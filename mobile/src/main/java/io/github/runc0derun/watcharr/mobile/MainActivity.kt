@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
@@ -584,15 +585,50 @@ fun MainScreen(viewModel: MobileViewModel, isInPipMode: Boolean) {
                                 }
                             }
                             else -> {
-                                Button(
-                                    onClick = {
-                                        viewModel.handleIntent(PlaybackIntent.ScheduleRecording(program, channel))
-                                        detailedProgram = null
-                                        detailedChannel = null
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                                ) {
-                                    Text("● Record")
+                                val targetCh = channel ?: uiState.channels.firstOrNull { it.url == program.channelId || it.tvgId == program.channelId || it.name == program.channelId }
+                                val isDrm = targetCh?.isDrmChannel() == true
+                                var showDrmPopup by remember { mutableStateOf(false) }
+
+                                Box {
+                                    Button(
+                                        onClick = {
+                                            if (isDrm) {
+                                                showDrmPopup = !showDrmPopup
+                                            } else {
+                                                viewModel.handleIntent(PlaybackIntent.ScheduleRecording(program, channel))
+                                                detailedProgram = null
+                                                detailedChannel = null
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (isDrm) Color.Gray.copy(alpha = 0.5f) else MaterialTheme.colorScheme.error,
+                                            contentColor = if (isDrm) Color.LightGray else Color.White
+                                        )
+                                    ) {
+                                        Text("● Record")
+                                    }
+
+                                    if (showDrmPopup) {
+                                        Popup(
+                                            alignment = Alignment.BottomCenter,
+                                            onDismissRequest = { showDrmPopup = false }
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                                tonalElevation = 6.dp,
+                                                shadowElevation = 6.dp,
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "The channel contains DRM",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

@@ -50,6 +50,13 @@ data class IptvUiState(
     val tsnetStatus: String = "",
     val recordings: List<DvrRecording> = emptyList(),
     val isDvrLoading: Boolean = false,
-    val scheduledProgramKeys: Set<String> = emptySet()
+    val scheduledProgramKeys: Set<String> = emptySet(),
+    val dvrRecordingMode: String = "WATCHARR",
+    val dvrStorageType: String = "ON_DEVICE",
+    val nfsSmbProtocol: String = "SMB",
+    val nfsSmbHost: String = "",
+    val nfsSmbSharePath: String = "",
+    val nfsSmbUser: String = "",
+    val nfsSmbPass: String = ""
 )
 

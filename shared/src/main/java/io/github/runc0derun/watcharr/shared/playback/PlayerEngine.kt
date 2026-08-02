@@ -6,11 +6,16 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.mp4.FragmentedMp4Extractor
 import io.github.runc0derun.watcharr.shared.data.db.ChannelEntity
 import io.github.runc0derun.watcharr.shared.mvi.PlaybackState
 import kotlinx.coroutines.CoroutineScope
@@ -91,7 +96,10 @@ class PlayerEngine(private val context: Context) {
             .setReadTimeoutMs(15000)
 
         val dataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(context, httpDataSourceFactory)
-        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context)
+        val extractorsFactory = DefaultExtractorsFactory()
+            .setFragmentedMp4ExtractorFlags(FragmentedMp4Extractor.FLAG_WORKAROUND_IGNORE_TFDT_BOX)
+
+        val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(context, extractorsFactory)
             .setDataSourceFactory(dataSourceFactory)
 
         val player = ExoPlayer.Builder(context, renderersFactory)
@@ -162,16 +170,163 @@ class PlayerEngine(private val context: Context) {
         _playbackState.value = PlaybackState.Loading
 
         scope.launch {
-            val mediaItem = resolveMediaItem(channel.url, channel.toMediaItem().mediaMetadata, channel)
-            
-            withContext(Dispatchers.Main) {
-                val player = getPlayer()
-                player.setMediaItem(mediaItem)
-                player.prepare()
-                setVideoEnabled(!isVideoRestrictedState)
-                player.playWhenReady = true
+            // Check for a pipe-separated dual-file DASH recording (video|audio)
+            val isDualFile = (channel.url.startsWith("/") || channel.url.startsWith("file://")) &&
+                    channel.url.contains("|")
+
+            if (isDualFile) {
+                playDualFileRecording(channel)
+            } else {
+                val mediaItem = resolveMediaItem(channel.url, channel.toMediaItem().mediaMetadata, channel)
+                withContext(Dispatchers.Main) {
+                    val player = getPlayer()
+                    player.setMediaItem(mediaItem)
+                    player.prepare()
+                    setVideoEnabled(!isVideoRestrictedState)
+                    player.playWhenReady = true
+                }
             }
         }
+    }
+
+    /**
+     * Plays a DASH recording that was saved as two separate fragmented-MP4 files
+     * (video and audio), combined via pipe separator in the channel URL.
+     * Uses ExoPlayer's MergingMediaSource to play both tracks in sync.
+     */
+    /**
+     * Plays a DASH recording that was saved as two separate fragmented-MP4 files
+     * (video and audio), combined via pipe separator in the channel URL.
+     * Uses ExoPlayer's MergingMediaSource to play both tracks in sync.
+     */
+    @OptIn(UnstableApi::class)
+    private suspend fun playDualFileRecording(channel: ChannelEntity) {
+        val parts = channel.url.split("|")
+        val videoPath = parts[0].let { if (it.startsWith("/")) "file://$it" else it }
+        val audioPath = parts.getOrNull(1)?.let { if (it.startsWith("/")) "file://$it" else it }
+
+        android.util.Log.d("Watcharr", "playDualFileRecording: video=$videoPath, audio=$audioPath")
+
+        val targetChannelId = findChannelId(channel, null)
+        val recordingRecord = withContext(Dispatchers.IO) {
+            try {
+                val db = io.github.runc0derun.watcharr.shared.data.db.AppDatabase.getDatabase(context)
+                db.dvrRecordingDao().getAllRecordings().firstOrNull { it.localFilePath?.contains(parts[0]) == true }
+            } catch (e: Exception) { null }
+        }
+        val keySetIdB64 = recordingRecord?.drmKeySetId
+
+        val drmConfig = if (targetChannelId != null) {
+            buildDrmConfiguration(
+                targetChannelId,
+                null,
+                try { channel.url.toUri() } catch (e: Exception) { null },
+                keySetIdB64 = keySetIdB64
+            )
+        } else null
+
+        withContext(Dispatchers.Main) {
+            val player = getPlayer()
+            val dataSourceFactory = DefaultDataSource.Factory(context)
+            val extractorsFactory = DefaultExtractorsFactory()
+                .setFragmentedMp4ExtractorFlags(FragmentedMp4Extractor.FLAG_WORKAROUND_IGNORE_TFDT_BOX)
+
+            val videoItemBuilder = MediaItem.Builder().setUri(videoPath)
+            if (drmConfig != null) {
+                videoItemBuilder.setDrmConfiguration(drmConfig)
+            }
+            val videoSource = ProgressiveMediaSource.Factory(dataSourceFactory, extractorsFactory)
+                .createMediaSource(videoItemBuilder.build())
+
+            val mediaSource = if (audioPath != null) {
+                val audioItemBuilder = MediaItem.Builder().setUri(audioPath)
+                if (drmConfig != null) {
+                    audioItemBuilder.setDrmConfiguration(drmConfig)
+                }
+                val audioSource = ProgressiveMediaSource.Factory(dataSourceFactory, extractorsFactory)
+                    .createMediaSource(audioItemBuilder.build())
+                MergingMediaSource(videoSource, audioSource)
+            } else {
+                videoSource
+            }
+
+            player.setMediaSource(mediaSource)
+            player.prepare()
+            setVideoEnabled(!isVideoRestrictedState)
+            player.playWhenReady = true
+        }
+    }
+
+    private suspend fun getLicenseUri(targetChannelId: String, uri: Uri?, originalUri: Uri?): String? {
+        var authority = uri?.authority?.takeIf { it.contains("delta") || (uri.pathSegments ?: emptyList()).contains("live") }
+            ?: originalUri?.authority?.takeIf { it.contains("delta") || (originalUri.pathSegments ?: emptyList()).contains("live") }
+
+        var scheme = uri?.scheme?.takeIf { !it.startsWith("file") } ?: originalUri?.scheme?.takeIf { !it.startsWith("file") } ?: "https"
+
+        if (authority == null) {
+            val matchedChannel = activeChannelList.firstOrNull { ch ->
+                val chUri = try { ch.url.toUri() } catch (e: Exception) { null }
+                ch.tvgId == targetChannelId || (chUri != null && chUri.pathSegments.contains(targetChannelId))
+            } ?: currentChannel
+
+            if (matchedChannel != null && matchedChannel.url.startsWith("http", ignoreCase = true)) {
+                val resolved = resolveRedirect(matchedChannel.url)
+                val resUri = try { resolved.url.toUri() } catch (e: Exception) { null }
+                authority = resUri?.authority ?: try { matchedChannel.url.toUri().authority } catch (e: Exception) { null }
+                scheme = resUri?.scheme ?: "https"
+            }
+        }
+
+        if (authority == null) {
+            authority = uri?.authority?.takeIf { !it.startsWith("file") } ?: originalUri?.authority?.takeIf { !it.startsWith("file") }
+        }
+
+        return if (authority != null) {
+            "$scheme://$authority/license/$targetChannelId"
+        } else null
+    }
+
+    private suspend fun buildDrmConfiguration(
+        targetChannelId: String,
+        uri: Uri?,
+        originalUri: Uri?,
+        keySetIdB64: String? = null
+    ): MediaItem.DrmConfiguration? {
+        if (!keySetIdB64.isNullOrEmpty()) {
+            return try {
+                val keySetId = android.util.Base64.decode(keySetIdB64, android.util.Base64.DEFAULT)
+                android.util.Log.d("Watcharr", "buildDrmConfiguration: Using stored offline keySetId")
+                MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
+                    .setKeySetId(keySetId)
+                    .build()
+            } catch (e: Exception) {
+                android.util.Log.w("Watcharr", "Failed to decode keySetIdB64", e)
+                null
+            }
+        }
+
+        val licenseUri = getLicenseUri(targetChannelId, uri, originalUri) ?: return null
+        val tokenParam = uri?.getQueryParameter("token") ?: originalUri?.getQueryParameter("token")
+
+        val fullLicenseUri = if (!tokenParam.isNullOrEmpty() && !licenseUri.contains("token=")) {
+            val sep = if (licenseUri.contains("?")) "&" else "?"
+            "$licenseUri${sep}token=$tokenParam"
+        } else {
+            licenseUri
+        }
+
+        android.util.Log.d("Watcharr", "buildDrmConfiguration: DRM licenseUri=$fullLicenseUri")
+
+        val drmConfigBuilder = MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
+            .setLicenseUri(fullLicenseUri)
+            .setMultiSession(true)
+            .setForceDefaultLicenseUri(true)
+
+        if (!tokenParam.isNullOrEmpty()) {
+            drmConfigBuilder.setLicenseRequestHeaders(mapOf("Authorization" to "Bearer $tokenParam"))
+        }
+
+        return drmConfigBuilder.build()
     }
 
     internal fun findChannelId(channel: ChannelEntity?, uri: Uri?): String? {
@@ -257,9 +412,16 @@ class PlayerEngine(private val context: Context) {
         channel: ChannelEntity? = null
     ): MediaItem {
         android.util.Log.d("Watcharr", "resolveMediaItem: Original URL: $url")
-        val resolvedInfo = resolveRedirect(url)
+        val isLocalFile = url.startsWith("/") || url.startsWith("file://")
+        val formattedLocalUri = if (url.startsWith("/")) "file://$url" else url
+
+        val resolvedInfo = if (isLocalFile) {
+            ResolvedUrlInfo(formattedLocalUri, null, null)
+        } else {
+            resolveRedirect(url)
+        }
         val targetChannel = channel ?: currentChannel
-        val isRecording = resolvedInfo.url.contains("/recordings/") || resolvedInfo.url.contains("/dvr/") || targetChannel?.groupTitle == "Recordings"
+        val isRecording = isLocalFile || resolvedInfo.url.contains("/recordings/") || resolvedInfo.url.contains("/dvr/") || targetChannel?.groupTitle == "Recordings"
 
         var actualUrlInfo = resolvedInfo
         if (isRecording && resolvedInfo.url.contains("/file/")) {
@@ -312,6 +474,7 @@ class PlayerEngine(private val context: Context) {
 
         // Set MIME type based on detected format
         val mimeType = when {
+            isLocalFile -> null
             isLiveWidevineProxy || isDash -> "application/dash+xml"
             isHls -> "application/x-mpegURL"
             isMp4 -> "video/mp4"
@@ -324,36 +487,25 @@ class PlayerEngine(private val context: Context) {
         }
         android.util.Log.d("Watcharr", "resolveMediaItem: isRecording=$isRecording, isHls=$isHls, isDash=$isDash, isMkv=$isMkv, isLiveProxy=$isLiveWidevineProxy, mimeType=$mimeType, channelId=$targetChannelId")
 
-        // Apply DRM for live Widevine proxy, DASH streams, AND encrypted recordings.
-        // Dispatcharr does NOT decrypt during recording — the device must decrypt at playback.
+        // Apply DRM for live Widevine proxy, DASH streams, and encrypted recordings (both local and remote).
         if (targetChannelId != null && (isLiveWidevineProxy || isDash || isRecording)) {
             try {
-                // Use the original URL's authority for license URI (not the resolved/CDN URL)
-                val licenseAuthority = originalUri?.authority ?: uri?.authority
-                val licenseScheme = originalUri?.scheme ?: uri?.scheme ?: "http"
-                if (licenseAuthority != null) {
-                    val baseLicenseUri = "$licenseScheme://$licenseAuthority/license/$targetChannelId"
-                    val tokenParam = uri?.getQueryParameter("token")
-                        ?: originalUri?.getQueryParameter("token")
+                val recordingRecord = if (isRecording) {
+                    try {
+                        val db = io.github.runc0derun.watcharr.shared.data.db.AppDatabase.getDatabase(context)
+                        val targetPath = finalUrl.removePrefix("file://")
+                        db.dvrRecordingDao().getAllRecordings().firstOrNull { it.localFilePath?.contains(targetPath) == true }
+                    } catch (e: Exception) { null }
+                } else null
 
-                    val licenseUri = if (!tokenParam.isNullOrEmpty()) {
-                        "$baseLicenseUri?token=$tokenParam"
-                    } else {
-                        baseLicenseUri
-                    }
-
-                    android.util.Log.d("Watcharr", "resolveMediaItem: DRM licenseUri=$licenseUri")
-
-                    val drmConfigBuilder = MediaItem.DrmConfiguration.Builder(androidx.media3.common.C.WIDEVINE_UUID)
-                        .setLicenseUri(licenseUri)
-                        .setMultiSession(true) // Recordings may span multiple key periods
-                        .setForceDefaultLicenseUri(true) // Always use our license proxy
-
-                    if (!tokenParam.isNullOrEmpty()) {
-                        drmConfigBuilder.setLicenseRequestHeaders(mapOf("Authorization" to "Bearer $tokenParam"))
-                    }
-
-                    mediaItemBuilder.setDrmConfiguration(drmConfigBuilder.build())
+                val drmConfig = buildDrmConfiguration(
+                    targetChannelId,
+                    uri,
+                    originalUri,
+                    keySetIdB64 = recordingRecord?.drmKeySetId
+                )
+                if (drmConfig != null) {
+                    mediaItemBuilder.setDrmConfiguration(drmConfig)
                 }
             } catch (e: Exception) {
                 android.util.Log.e("Watcharr", "resolveMediaItem: Failed to configure DRM", e)
@@ -468,7 +620,10 @@ class PlayerEngine(private val context: Context) {
      * or returns no Content-Type. For URLs without file extensions (like recording
      * endpoints), also sniffs the first bytes to distinguish HLS/DASH/binary.
      */
-    private suspend fun resolveRedirect(urlStr: String): ResolvedUrlInfo {
+    private suspend fun resolveRedirect(urlStr: String, redirectDepth: Int = 0): ResolvedUrlInfo {
+        if (redirectDepth > 5 || (!urlStr.startsWith("http://", ignoreCase = true) && !urlStr.startsWith("https://", ignoreCase = true))) {
+            return ResolvedUrlInfo(urlStr, null, null)
+        }
         return withContext(Dispatchers.IO) {
             val originalToken = try { urlStr.toUri().getQueryParameter("token") } catch (e: Exception) { null }
 
@@ -482,13 +637,15 @@ class PlayerEngine(private val context: Context) {
                             val sep = if (resolved.contains("?")) "&" else "?"
                             resolved = "$resolved${sep}token=$originalToken"
                         }
-                        return@withContext resolveRedirect(resolved)
+                        return@withContext resolveRedirect(resolved, redirectDepth + 1)
                     }
-                    // HEAD succeeded with a useful Content-Type — no need to sniff
-                    val ct = headResult.contentType?.lowercase() ?: ""
-                    if (ct.isNotEmpty() && !ct.contains("octet-stream") && !ct.contains("html")) {
-                        android.util.Log.d("Watcharr", "resolveRedirect: HEAD Content-Type=$ct for $urlStr")
-                        return@withContext ResolvedUrlInfo(urlStr, headResult.contentType)
+                    // HEAD succeeded with a 2xx status code and a useful Content-Type — no need to sniff
+                    if (headResult.responseCode in 200..299) {
+                        val ct = headResult.contentType?.lowercase() ?: ""
+                        if (ct.isNotEmpty() && !ct.contains("octet-stream") && !ct.contains("html") && !ct.contains("json")) {
+                            android.util.Log.d("Watcharr", "resolveRedirect: HEAD Content-Type=$ct for $urlStr")
+                            return@withContext ResolvedUrlInfo(urlStr, headResult.contentType)
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -520,7 +677,7 @@ class PlayerEngine(private val context: Context) {
                             val sep = if (resolved.contains("?")) "&" else "?"
                             resolved = "$resolved${sep}token=$originalToken"
                         }
-                        return@withContext resolveRedirect(resolved)
+                        return@withContext resolveRedirect(resolved, redirectDepth + 1)
                     }
                 }
 

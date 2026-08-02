@@ -4,13 +4,23 @@ import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.painterResource
 import io.github.runc0derun.watcharr.mobile.R
@@ -869,10 +879,21 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
     var m3uInput by remember { mutableStateOf("") }
     var epgInput by remember { mutableStateOf("") }
 
+    var dvrRecordingModeInput by remember { mutableStateOf("WATCHARR") }
+    var dvrStorageTypeInput by remember { mutableStateOf("ON_DEVICE") }
+    var nfsSmbProtocolInput by remember { mutableStateOf("SMB") }
+    var nfsSmbHostInput by remember { mutableStateOf("") }
+    var nfsSmbSharePathInput by remember { mutableStateOf("") }
+    var nfsSmbUserInput by remember { mutableStateOf("") }
+    var nfsSmbPassInput by remember { mutableStateOf("") }
+    var networkTestStatus by remember { mutableStateOf<String?>(null) }
+    var isTestingNetwork by remember { mutableStateOf(false) }
+
     var isTailnetSelected by remember { mutableStateOf(uiState.isTailnetEnabled) }
     var tailscaleAuthKeyInput by remember(uiState.tailscaleAuthKey) { mutableStateOf(uiState.tailscaleAuthKey) }
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     if (uiState.isLoadingPlaylist || uiState.isLoadingEpg) {
         Box(
@@ -1183,23 +1204,216 @@ fun MobileOnboardingWizard(viewModel: MobileViewModel) {
                         Text("Back")
                     }
                     Button(
+                        onClick = { currentStep = 5 },
+                        modifier = Modifier.weight(1f),
+                        enabled = if (isDispatcharrMode) dispatcharrInput.isNotEmpty() else m3uInput.isNotEmpty()
+                    ) {
+                        Text("Next: DVR Setup")
+                    }
+                }
+            }
+
+            5 -> {
+                Text(
+                    text = "DVR Recording Setup",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("Recording Mode", fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { dvrRecordingModeInput = "WATCHARR" },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (dvrRecordingModeInput == "WATCHARR") MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = if (dvrRecordingModeInput == "WATCHARR") androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Watcharr (Default)", fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Records streams directly with real-time DRM decryption.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
+                        }
+                    }
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { dvrRecordingModeInput = "DISPATCHARR" },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (dvrRecordingModeInput == "DISPATCHARR") MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = if (dvrRecordingModeInput == "DISPATCHARR") androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Dispatcharr", fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Delegates recording tasks to your Dispatcharr server.", style = MaterialTheme.typography.bodySmall, color = Color.LightGray)
+                        }
+                    }
+                }
+
+                if (dvrRecordingModeInput == "DISPATCHARR") {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF5C2600)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "⚠️ Warning: Playing back recordings from DRM-enabled channels will not work when using Dispatcharr recording.",
+                                color = Color(0xFFFFCC80),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+
+                if (dvrRecordingModeInput == "WATCHARR") {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Storage Location", fontWeight = FontWeight.Bold, color = Color.White)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = { dvrStorageTypeInput = "ON_DEVICE" },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (dvrStorageTypeInput == "ON_DEVICE") MaterialTheme.colorScheme.primary else Color.DarkGray
+                            )
+                        ) {
+                            Text("On Device (Default)")
+                        }
+                        Button(
+                            onClick = { dvrStorageTypeInput = "NETWORK_SHARE" },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (dvrStorageTypeInput == "NETWORK_SHARE") MaterialTheme.colorScheme.primary else Color.DarkGray
+                            )
+                        ) {
+                            Text("Network Share")
+                        }
+                    }
+
+                    if (dvrStorageTypeInput == "NETWORK_SHARE") {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = nfsSmbProtocolInput == "SMB",
+                                onClick = { nfsSmbProtocolInput = "SMB" },
+                                label = { Text("SMB") }
+                            )
+                            FilterChip(
+                                selected = nfsSmbProtocolInput == "NFS",
+                                onClick = { nfsSmbProtocolInput = "NFS" },
+                                label = { Text("NFS") }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = nfsSmbHostInput,
+                            onValueChange = { nfsSmbHostInput = it },
+                            label = { Text("Server Host / IP") },
+                            placeholder = { Text("192.168.1.50") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = nfsSmbSharePathInput,
+                            onValueChange = { nfsSmbSharePathInput = it },
+                            label = { Text("Share Name / Path") },
+                            placeholder = { Text("recordings") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (nfsSmbProtocolInput == "SMB") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = nfsSmbUserInput,
+                                onValueChange = { nfsSmbUserInput = it },
+                                label = { Text("SMB User (Optional)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = nfsSmbPassInput,
+                                onValueChange = { nfsSmbPassInput = it },
+                                label = { Text("SMB Password (Optional)") },
+                                singleLine = true,
+                                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                isTestingNetwork = true
+                                networkTestStatus = "Testing share reachability..."
+                                scope.launch {
+                                    val res = viewModel.testNetworkStorageReachability(
+                                        protocol = nfsSmbProtocolInput,
+                                        host = nfsSmbHostInput,
+                                        sharePath = nfsSmbSharePathInput,
+                                        user = nfsSmbUserInput,
+                                        pass = nfsSmbPassInput
+                                    )
+                                    isTestingNetwork = false
+                                    networkTestStatus = res.message
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                        ) {
+                            Text(if (isTestingNetwork) "Testing..." else "Test Share Connection")
+                        }
+                        if (networkTestStatus != null) {
+                            Text(
+                                text = networkTestStatus!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (networkTestStatus!!.contains("Successfully")) Color.Green else Color.Yellow,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Button(onClick = { currentStep = 4 }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)) {
+                        Text("Back")
+                    }
+                    Button(
                         onClick = {
                             if (isDispatcharrMode) {
                                 if (dispatcharrInput.isNotEmpty()) {
                                     val m3u = "$dispatcharrInput/output/m3u"
                                     val epg = "$dispatcharrInput/output/epg"
-                                    viewModel.completeOnboarding(m3u, epg, dispatcharrInput, true, dispatcharrUsernameInput, dispatcharrPasswordInput)
+                                    viewModel.completeOnboarding(
+                                        m3u, epg, dispatcharrInput, true, dispatcharrUsernameInput, dispatcharrPasswordInput,
+                                        dvrRecordingModeInput, dvrStorageTypeInput, nfsSmbProtocolInput, nfsSmbHostInput, nfsSmbSharePathInput, nfsSmbUserInput, nfsSmbPassInput
+                                    )
                                 }
                             } else {
                                 if (m3uInput.isNotEmpty()) {
-                                    viewModel.completeOnboarding(m3uInput, epgInput, null, false)
+                                    viewModel.completeOnboarding(
+                                        m3uInput, epgInput, null, false, "", "",
+                                        dvrRecordingModeInput, dvrStorageTypeInput, nfsSmbProtocolInput, nfsSmbHostInput, nfsSmbSharePathInput, nfsSmbUserInput, nfsSmbPassInput
+                                    )
                                 }
                             }
                         },
                         modifier = Modifier.weight(1f),
                         enabled = if (isDispatcharrMode) dispatcharrInput.isNotEmpty() else m3uInput.isNotEmpty()
                     ) {
-                        Text("Load")
+                        Text("Complete Setup")
                     }
                 }
             }
@@ -2044,6 +2258,70 @@ fun MobileSettingsPanel(
                 ) {
                     Text("Apply & Reload")
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Divider()
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("DVR Configuration", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { viewModel.setDvrRecordingMode("WATCHARR") },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (uiState.dvrRecordingMode == "WATCHARR") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Text("Watcharr (Default)", color = if (uiState.dvrRecordingMode == "WATCHARR") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = { viewModel.setDvrRecordingMode("DISPATCHARR") },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (uiState.dvrRecordingMode == "DISPATCHARR") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Text("Dispatcharr", color = if (uiState.dvrRecordingMode == "DISPATCHARR") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                if (uiState.dvrRecordingMode == "DISPATCHARR") {
+                    Text(
+                        text = "⚠️ Warning: Playing back recordings from DRM-enabled channels will not work when using Dispatcharr recording.",
+                        color = Color(0xFFFFB74D),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                if (uiState.dvrRecordingMode == "WATCHARR") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.setDvrStorageConfig("ON_DEVICE") },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (uiState.dvrStorageType == "ON_DEVICE") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Text("On Device", color = if (uiState.dvrStorageType == "ON_DEVICE") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Button(
+                            onClick = { viewModel.setDvrStorageConfig("NETWORK_SHARE", uiState.nfsSmbProtocol, uiState.nfsSmbHost, uiState.nfsSmbSharePath, uiState.nfsSmbUser, uiState.nfsSmbPass) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (uiState.dvrStorageType == "NETWORK_SHARE") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Text("Network Share", color = if (uiState.dvrStorageType == "NETWORK_SHARE") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
 
             if (!isAutomotive) {
@@ -2259,7 +2537,7 @@ fun MobileRecordingsScreen(
     viewModel: BaseIptvViewModel,
     onNavigateToSetup: () -> Unit
 ) {
-    if (!uiState.useDispatcharr || uiState.dispatcharrUrl.isEmpty()) {
+    if (!uiState.useDispatcharr && uiState.dvrRecordingMode != "WATCHARR" && uiState.recordings.isEmpty()) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -2285,13 +2563,13 @@ fun MobileRecordingsScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Dispatcharr DVR Required",
+                        text = "DVR Mode Required",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Text(
-                        text = "Recordings are only available when integrated with Dispatcharr and not with any other M3U provider.",
+                        text = "Configure Watcharr or Dispatcharr DVR mode in settings to schedule and play back recordings.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -2300,7 +2578,7 @@ fun MobileRecordingsScreen(
                         onClick = onNavigateToSetup,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
-                        Text("Configure Dispatcharr in Setup")
+                        Text("Configure DVR in Setup")
                     }
                 }
             }
@@ -2400,79 +2678,147 @@ fun MobileRecordingsScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RecordingCardItem(
     recording: DvrRecording,
     onPlay: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-    ) {
-        Row(
+    var showMenu by remember { mutableStateOf(false) }
+    var menuReady by remember { mutableStateOf(false) }
+    var isLongClickTriggered by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showMenu) {
+        if (showMenu) {
+            menuReady = false
+            delay(200)
+            menuReady = true
+        }
+    }
+
+    Box {
+        Card(
             modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = {
+                        if (isLongClickTriggered) {
+                            isLongClickTriggered = false
+                        } else {
+                            if (recording.isCompleted()) {
+                                onPlay()
+                            } else {
+                                showMenu = true
+                            }
+                        }
+                    },
+                    onLongClick = {
+                        isLongClickTriggered = true
+                        showMenu = true
+                    }
+                ),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         ) {
-            Box(
+            Row(
                 modifier = Modifier
-                    .size(80.dp, 60.dp)
-                    .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
+                    .padding(16.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (!recording.posterUrl.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = recording.posterUrl,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Text("DVR", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                }
-            }
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = recording.programTitle,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = recording.channelName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                Text(
-                    text = formatTimeRange(recording.startEpochMs, recording.stopEpochMs),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (recording.isCompleted()) {
-                    Button(
-                        onClick = onPlay,
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Text("▶ Play")
+                Box(
+                    modifier = Modifier
+                        .size(80.dp, 60.dp)
+                        .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!recording.posterUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = recording.posterUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text("DVR", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
                 }
-                OutlinedButton(
-                    onClick = onDelete,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text("Delete")
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = recording.programTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Surface(
+                            color = if (recording.isWatcharrLocal()) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = if (recording.isWatcharrLocal()) "Watcharr" else "Dispatcharr",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (recording.isWatcharrLocal()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "${recording.channelName} • ${formatTimeRange(recording.startEpochMs, recording.stopEpochMs)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    val reason = recording.errorReason
+                    if (recording.isWatcharrLocal() && reason != null) {
+                        Text(
+                            text = reason,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Text(
+                            text = "⋮",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        if (recording.isCompleted()) {
+                            DropdownMenuItem(
+                                enabled = menuReady,
+                                text = { Text("▶ Play Recording") },
+                                onClick = {
+                                    showMenu = false
+                                    onPlay()
+                                }
+                            )
+                        }
+                        DropdownMenuItem(
+                            enabled = menuReady,
+                            text = { Text(if (recording.isCompleted()) "🗑️ Delete Recording" else "🚫 Cancel Recording", color = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                showMenu = false
+                                onDelete()
+                            }
+                        )
+                    }
                 }
             }
         }
