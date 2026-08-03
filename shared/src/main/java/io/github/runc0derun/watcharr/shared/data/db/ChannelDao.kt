@@ -20,6 +20,9 @@ interface ChannelDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(channels: List<ChannelEntity>)
 
+    @Query("UPDATE channels SET isDrm = :isDrm WHERE url = :url")
+    suspend fun updateDrmStatus(url: String, isDrm: Boolean)
+
     @Query("DELETE FROM channels")
     suspend fun deleteAll()
 }

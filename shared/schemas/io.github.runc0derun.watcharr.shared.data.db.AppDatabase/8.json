@@ -1,0 +1,309 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 8,
+    "identityHash": "31128004226cb56b45a1627137990d9d",
+    "entities": [
+      {
+        "tableName": "channels",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`url` TEXT NOT NULL, `name` TEXT NOT NULL, `tvgId` TEXT, `tvgName` TEXT, `logoUrl` TEXT, `groupTitle` TEXT, `isDrm` INTEGER NOT NULL, PRIMARY KEY(`url`))",
+        "fields": [
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tvgId",
+            "columnName": "tvgId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tvgName",
+            "columnName": "tvgName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "logoUrl",
+            "columnName": "logoUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "groupTitle",
+            "columnName": "groupTitle",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isDrm",
+            "columnName": "isDrm",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "url"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_channels_groupTitle",
+            "unique": false,
+            "columnNames": [
+              "groupTitle"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_channels_groupTitle` ON `${TABLE_NAME}` (`groupTitle`)"
+          },
+          {
+            "name": "index_channels_tvgId",
+            "unique": false,
+            "columnNames": [
+              "tvgId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_channels_tvgId` ON `${TABLE_NAME}` (`tvgId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "programs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`channelId` TEXT NOT NULL, `start` INTEGER NOT NULL, `stop` INTEGER NOT NULL, `title` TEXT NOT NULL, `desc` TEXT, `iconUrl` TEXT, PRIMARY KEY(`channelId`, `start`))",
+        "fields": [
+          {
+            "fieldPath": "channelId",
+            "columnName": "channelId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "start",
+            "columnName": "start",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stop",
+            "columnName": "stop",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "desc",
+            "columnName": "desc",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "iconUrl",
+            "columnName": "iconUrl",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "channelId",
+            "start"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_programs_channelId",
+            "unique": false,
+            "columnNames": [
+              "channelId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_programs_channelId` ON `${TABLE_NAME}` (`channelId`)"
+          },
+          {
+            "name": "index_programs_start",
+            "unique": false,
+            "columnNames": [
+              "start"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_programs_start` ON `${TABLE_NAME}` (`start`)"
+          },
+          {
+            "name": "index_programs_stop",
+            "unique": false,
+            "columnNames": [
+              "stop"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_programs_stop` ON `${TABLE_NAME}` (`stop`)"
+          }
+        ]
+      },
+      {
+        "tableName": "favorites",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`channelUrl` TEXT NOT NULL, PRIMARY KEY(`channelUrl`))",
+        "fields": [
+          {
+            "fieldPath": "channelUrl",
+            "columnName": "channelUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "channelUrl"
+          ]
+        }
+      },
+      {
+        "tableName": "dvr_recordings",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `programTitle` TEXT NOT NULL, `channelName` TEXT NOT NULL, `channelId` TEXT NOT NULL, `startEpochMs` INTEGER NOT NULL, `stopEpochMs` INTEGER NOT NULL, `status` TEXT NOT NULL, `streamUrl` TEXT NOT NULL, `posterUrl` TEXT, `description` TEXT, `localFilePath` TEXT, `recordingEngine` TEXT NOT NULL, `storageType` TEXT NOT NULL, `isDrmDecrypted` INTEGER NOT NULL, `drmKeySetId` TEXT, `errorReason` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "programTitle",
+            "columnName": "programTitle",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "channelName",
+            "columnName": "channelName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "channelId",
+            "columnName": "channelId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startEpochMs",
+            "columnName": "startEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stopEpochMs",
+            "columnName": "stopEpochMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "streamUrl",
+            "columnName": "streamUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "posterUrl",
+            "columnName": "posterUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "localFilePath",
+            "columnName": "localFilePath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "recordingEngine",
+            "columnName": "recordingEngine",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "storageType",
+            "columnName": "storageType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDrmDecrypted",
+            "columnName": "isDrmDecrypted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "drmKeySetId",
+            "columnName": "drmKeySetId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "errorReason",
+            "columnName": "errorReason",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_dvr_recordings_channelId",
+            "unique": false,
+            "columnNames": [
+              "channelId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_dvr_recordings_channelId` ON `${TABLE_NAME}` (`channelId`)"
+          },
+          {
+            "name": "index_dvr_recordings_startEpochMs",
+            "unique": false,
+            "columnNames": [
+              "startEpochMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_dvr_recordings_startEpochMs` ON `${TABLE_NAME}` (`startEpochMs`)"
+          },
+          {
+            "name": "index_dvr_recordings_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_dvr_recordings_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '31128004226cb56b45a1627137990d9d')"
+    ]
+  }
+}
