@@ -333,6 +333,13 @@ fun TvMainScreen(viewModel: TvViewModel) {
                                 }
                             )
                         }
+                        TvTab.RECORDINGS -> {
+                            TvRecordingsScreen(
+                                uiState = uiState,
+                                viewModel = viewModel,
+                                onNavigateToSetup = { selectedTab = TvTab.SETTINGS }
+                            )
+                        }
                         TvTab.SETTINGS -> {
                             TvSettingsPanel(
                                 uiState = uiState,
@@ -348,6 +355,18 @@ fun TvMainScreen(viewModel: TvViewModel) {
             TvProgramDetailScreen(
                 program = prog,
                 channel = selectedChannelForDetail,
+                uiState = uiState,
+                onScheduleRecording = { p, c ->
+                    viewModel.handleIntent(PlaybackIntent.ScheduleRecording(p, c))
+                },
+                onCancelRecording = { recId ->
+                    viewModel.handleIntent(PlaybackIntent.CancelRecording(recId))
+                },
+                onPlayRecording = { rec ->
+                    selectedProgramForDetail = null
+                    selectedChannelForDetail = null
+                    viewModel.handleIntent(PlaybackIntent.PlayRecording(rec))
+                },
                 onDismiss = {
                     selectedProgramForDetail = null
                     selectedChannelForDetail = null

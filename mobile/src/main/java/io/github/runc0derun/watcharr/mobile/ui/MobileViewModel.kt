@@ -31,9 +31,48 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
                 _isOnboardingCompleted,
                 _useDispatcharr,
                 _dispatcharrUrl,
-                tailnetFlow
-            ) { selectedGroup, completed, useDispatcharr, dispatcharrUrl, tailnet ->
-                SettingsInfo(selectedGroup, completed, useDispatcharr, dispatcharrUrl, tailnet.enabled, tailnet.key, tailnet.status)
+                _dispatcharrUsername,
+                _dispatcharrPassword,
+                tailnetFlow,
+                dvrInfoFlow,
+                combine(_dvrRecordingMode, _dvrStorageType, _nfsSmbProtocol, _nfsSmbHost, _nfsSmbSharePath) { mode, storage, proto, host, path ->
+                    DvrConfigInfo(mode, storage, proto, host, path)
+                },
+                combine(_nfsSmbUser, _nfsSmbPass) { user, pass ->
+                    DvrCredsInfo(user, pass)
+                }
+            ) { args ->
+                val selectedGroup = args[0] as String?
+                val completed = args[1] as Boolean
+                val useDispatcharr = args[2] as Boolean
+                val dispatcharrUrl = args[3] as String
+                val dispatcharrUsername = args[4] as String
+                val dispatcharrPassword = args[5] as String
+                val tailnet = args[6] as TailnetInfo
+                val dvr = args[7] as DvrInfo
+                val dvrConfig = args[8] as DvrConfigInfo
+                val dvrCreds = args[9] as DvrCredsInfo
+                SettingsInfo(
+                    selectedGroup = selectedGroup,
+                    isOnboardingCompleted = completed,
+                    useDispatcharr = useDispatcharr,
+                    dispatcharrUrl = dispatcharrUrl,
+                    dispatcharrUsername = dispatcharrUsername,
+                    dispatcharrPassword = dispatcharrPassword,
+                    isTailnetEnabled = tailnet.enabled,
+                    tailscaleAuthKey = tailnet.key,
+                    tsnetStatus = tailnet.status,
+                    recordings = dvr.recordings,
+                    isDvrLoading = dvr.isDvrLoading,
+                    scheduledProgramKeys = dvr.scheduledProgramKeys,
+                    dvrRecordingMode = dvrConfig.mode,
+                    dvrStorageType = dvrConfig.storage,
+                    nfsSmbProtocol = dvrConfig.proto,
+                    nfsSmbHost = dvrConfig.host,
+                    nfsSmbSharePath = dvrConfig.path,
+                    nfsSmbUser = dvrCreds.user,
+                    nfsSmbPass = dvrCreds.pass
+                )
             }
 
             combine(
@@ -84,9 +123,21 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
                     isOnboardingCompleted = isOnboardingCompleted,
                     useDispatcharr = useDispatcharr,
                     dispatcharrUrl = dispatcharrUrl,
+                    dispatcharrUsername = settingsInfo.dispatcharrUsername,
+                    dispatcharrPassword = settingsInfo.dispatcharrPassword,
                     isTailnetEnabled = settingsInfo.isTailnetEnabled,
                     tailscaleAuthKey = settingsInfo.tailscaleAuthKey,
-                    tsnetStatus = settingsInfo.tsnetStatus
+                    tsnetStatus = settingsInfo.tsnetStatus,
+                    recordings = settingsInfo.recordings,
+                    isDvrLoading = settingsInfo.isDvrLoading,
+                    scheduledProgramKeys = settingsInfo.scheduledProgramKeys,
+                    dvrRecordingMode = settingsInfo.dvrRecordingMode,
+                    dvrStorageType = settingsInfo.dvrStorageType,
+                    nfsSmbProtocol = settingsInfo.nfsSmbProtocol,
+                    nfsSmbHost = settingsInfo.nfsSmbHost,
+                    nfsSmbSharePath = settingsInfo.nfsSmbSharePath,
+                    nfsSmbUser = settingsInfo.nfsSmbUser,
+                    nfsSmbPass = settingsInfo.nfsSmbPass
                 )
             }.collect { state ->
                 _uiState.value = state.copy(isInitialized = true)
@@ -160,13 +211,38 @@ class MobileViewModel(application: Application) : BaseIptvViewModel(application)
         val status: String
     )
 
+    private data class DvrConfigInfo(
+        val mode: String,
+        val storage: String,
+        val proto: String,
+        val host: String,
+        val path: String
+    )
+
+    private data class DvrCredsInfo(
+        val user: String,
+        val pass: String
+    )
+
     private data class SettingsInfo(
         val selectedGroup: String?,
         val isOnboardingCompleted: Boolean,
         val useDispatcharr: Boolean,
         val dispatcharrUrl: String,
+        val dispatcharrUsername: String,
+        val dispatcharrPassword: String,
         val isTailnetEnabled: Boolean,
         val tailscaleAuthKey: String,
-        val tsnetStatus: String
+        val tsnetStatus: String,
+        val recordings: List<io.github.runc0derun.watcharr.shared.data.dvr.DvrRecording>,
+        val isDvrLoading: Boolean,
+        val scheduledProgramKeys: Set<String>,
+        val dvrRecordingMode: String,
+        val dvrStorageType: String,
+        val nfsSmbProtocol: String,
+        val nfsSmbHost: String,
+        val nfsSmbSharePath: String,
+        val nfsSmbUser: String,
+        val nfsSmbPass: String
     )
 }
